@@ -13,10 +13,5 @@ import { RouterView } from 'vue-router'
 
 <style>
 /* Você pode manter seus estilos globais aqui, ou importá-los */
-body {
-  font-family: Arial, sans-serif;
-  background-color: #f4f4f4;
-  margin: 0;
-  padding: 0;
-}
+
 </style>
