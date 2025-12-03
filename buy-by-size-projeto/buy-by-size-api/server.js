@@ -262,6 +262,113 @@ app.delete('/api/regras/:id', async (req, res) => {
   }
 });
 
+// FUNÇÃO AUXILIAR PARA AVALIAR UMA CONDIÇÃO
+// Esta função faz a comparação lógica (ex: 1.80 > 1.75)
+const evaluateCondition = (medidaCliente, operador, valorRegra) => {
+    switch (operador) {
+        case '>': return medidaCliente > valorRegra;
+        case '>=': return medidaCliente >= valorRegra;
+        case '<': return medidaCliente < valorRegra;
+        case '<=': return medidaCliente <= valorRegra;
+        case '==': return medidaCliente == valorRegra;
+        case '!=': return medidaCliente != valorRegra;
+        default: return false;
+    }
+};
+
+// 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO
+app.post('/api/sugestao', async (req, res) => {
+    // Dados esperados: produto_id e as medidas do cliente (ex: altura, peso)
+    const { produto_id, medidas } = req.body; 
+
+    if (!produto_id || !medidas) {
+        return res.status(400).json({ error: 'Produto ID e medidas do cliente são obrigatórios.' });
+    }
+
+    try {
+        // 1. Encontrar o ID da Regra Mestre
+        const { data: produtoData, error: findError } = await supabase
+            .from('produtos_tamanhos')
+            .select('id')
+            .eq('produto_id', produto_id)
+            .single();
+
+        if (findError || !produtoData) {
+            return res.status(404).json({ error: 'Produto não encontrado para cálculo de sugestão.' });
+        }
+
+        const regra_mestre_id = produtoData.id;
+
+        // 2. Buscar todas as regras de sugestão para este produto
+        const { data: regras, error: fetchError } = await supabase
+            .from('regras_detalhes')
+            .select('*')
+            .eq('regra_mestre_id', regra_mestre_id)
+            .order('prioridade', { ascending: false }); // Prioriza regras mais importantes
+
+        if (fetchError || regras.length === 0) {
+            return res.status(200).json({ 
+                sugestao: null, 
+                message: 'Nenhuma regra de tamanho cadastrada para este produto.' 
+            });
+        }
+
+        // 3. Iterar e Avaliar as Regras
+        let sugestaoEncontrada = null;
+
+        for (const regra of regras) {
+            let todasCondicoesVerdadeiras = true;
+
+            // Itera sobre as condições da regra (ex: [{"campo": "altura", ...}, {"campo": "peso", ...}])
+            for (const condicao of regra.condicoes) {
+                const medidaCliente = medidas[condicao.campo];
+                const valorRegra = condicao.valor;
+
+                // 3a. Verifica se o cliente forneceu a medida que a regra exige
+                if (medidaCliente === undefined || medidaCliente === null) {
+                    todasCondicoesVerdadeiras = false;
+                    break; // Sai do loop de condições, pois falta dado
+                }
+
+                // 3b. Executa a comparação (ex: Altura do cliente > 1.75)
+                const resultado = evaluateCondition(
+                    parseFloat(medidaCliente), 
+                    condicao.operador, 
+                    parseFloat(valorRegra)
+                );
+
+                if (!resultado) {
+                    todasCondicoesVerdadeiras = false;
+                    break; // Sai do loop de condições, pois uma falhou
+                }
+            }
+
+            // 3c. Se todas as condições da regra forem verdadeiras, encontramos a sugestão!
+            if (todasCondicoesVerdadeiras) {
+                sugestaoEncontrada = regra.sugestao_tamanho;
+                break; // Encontramos a regra de maior prioridade válida, então paramos
+            }
+        }
+        
+        // 4. Retorno Final
+        if (sugestaoEncontrada) {
+            res.status(200).json({ 
+                sugestao: sugestaoEncontrada, 
+                message: 'Sugestão calculada com sucesso.' 
+            });
+        } else {
+            res.status(200).json({ 
+                sugestao: null, 
+                message: 'Nenhuma regra corresponde às medidas fornecidas.' 
+            });
+        }
+
+    } catch (error) {
+        console.error('Erro no cálculo da sugestão:', error.message);
+        res.status(500).json({ error: 'Erro interno ao calcular a sugestão.' });
+    }
+});
+
 app.listen(PORT, () => {
   // Esta mensagem deve aparecer no terminal
   console.log(`🚀 API rodando em http://localhost:${PORT}/api/status`);
