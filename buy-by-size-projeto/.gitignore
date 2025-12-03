@@ -1,0 +1,19 @@
+# --------------------
+# 1. Dependências e Pastas de Build (Gerais)
+# --------------------
+# Node.js modules
+node_modules
+/admin-panel/dist
+# Cache do Vite
+/admin-panel/.vite
+/buy-by-size-api/logs
+.env
+.env.*
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.sublime-workspace
