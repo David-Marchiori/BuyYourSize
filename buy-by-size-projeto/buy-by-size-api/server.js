@@ -13,20 +13,65 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// Middleware de autenticação de administrador (usa chave simples)
+const authenticateAdmin = (req, res, next) => {
+  const apiKey = req.headers['x-api-key']; // Espera-se a chave no header X-API-Key
+
+  if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(403).json({ error: 'Acesso Proibido. Chave de API inválida.' });
+  }
+
+  next(); // Continua para a próxima função (a lógica da rota)
+};
+
+// Define as origens permitidas (Substitua por domínios reais de produção)
+const allowedOrigins = [
+  'http://localhost:3000', // Para o seu frontend de desenvolvimento
+  'https://www.loja-do-cliente.com', // DOMÍNIO DO E-COMMERCE
+  'https://admin.loja-do-cliente.com' // DOMÍNIO DO PAINEL ADMIN
+  // Adicione aqui todos os domínios que acessarão esta API
+];
+
+const corsOptions = {
+  // A função verifica se a origem da requisição está na lista allowedOrigins
+  origin: (origin, callback) => {
+    // Permite requisições sem 'origin' (ex: Postman, scripts de servidor)
+    if (!origin) return callback(null, true); 
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Bloqueia se a origem não for permitida
+      callback(new Error('Not allowed by CORS'), false); 
+    }
+  },
+  // Define os métodos permitidos
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
 // Middleware para que o frontend possa se comunicar com o backend
-app.use(cors()); 
+// Use a configuração CORS restrita em produção, e a aberta em desenvolvimento
+if (process.env.NODE_ENV === 'production') {
+    app.use(cors(corsOptions)); 
+} else {
+    // Permite todas as origens para facilitar o desenvolvimento local/Codespaces
+    app.use(cors()); 
+}
+
 
 // Middleware para analisar o corpo das requisições JSON
 app.use(express.json()); 
 
 // 3. Rota de Status (Teste Inicial)
-app.get('/api/status', (req, res) => {
+app.get('/api/status', authenticateAdmin, (req, res) => {
   res.json({ status: 'ok', service: 'Buy by Size API', environment: process.env.NODE_ENV || 'development' });
 });
 
 
 // ROTA DE SINCRONIZAÇÃO DE CATÁLOGO VIA XML URL
-app.post('/api/produtos/sync-xml', async (req, res) => {
+app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
   const { xmlUrl } = req.body; // Espera-se que o frontend envie a URL no corpo da requisição
 
   if (!xmlUrl) {
@@ -84,7 +129,7 @@ app.post('/api/produtos/sync-xml', async (req, res) => {
 });
 
 // 4. ROTA POST: CRIAR UMA NOVA REGRA DE TAMANHO
-app.post('/api/regras', async (req, res) => {
+app.post('/api/regras', authenticateAdmin, async (req, res) => {
   // O corpo da requisição deve vir do Painel Admin e conter:
   // { produto_id: 'SKU-1001', condicoes: [{}...], sugestao_tamanho: 'P', prioridade: 1 }
   const { produto_id, condicoes, sugestao_tamanho, prioridade } = req.body;
@@ -140,7 +185,7 @@ app.post('/api/regras', async (req, res) => {
 
 // 5. ROTA GET: BUSCAR TODAS AS REGRAS PARA UM PRODUTO
 // Ex: GET /api/regras?produto_id=SKU-1001
-app.get('/api/regras', async (req, res) => {
+app.get('/api/regras', authenticateAdmin, async (req, res) => {
   const { produto_id } = req.query; // Captura o produto_id da query string
 
   if (!produto_id) {
@@ -188,7 +233,7 @@ app.get('/api/regras', async (req, res) => {
 
 // 6. ROTA PUT: ATUALIZAR UMA REGRA EXISTENTE
 // Ex: PUT /api/regras/ID_DA_REGRA (onde ID_DA_REGRA é o 'id' da regras_detalhes)
-app.put('/api/regras/:id', async (req, res) => {
+app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
   const { id } = req.params; // ID da regra (UUID) vindo da URL
   const { condicoes, sugestao_tamanho, prioridade } = req.body;
 
@@ -231,7 +276,7 @@ app.put('/api/regras/:id', async (req, res) => {
 });
 
 // 7. ROTA DELETE: EXCLUIR UMA REGRA
-app.delete('/api/regras/:id', async (req, res) => {
+app.delete('/api/regras/:id', authenticateAdmin, async (req, res) => {
   const { id } = req.params; // ID da regra (UUID) vindo da URL
 
   try {
@@ -366,6 +411,28 @@ app.post('/api/sugestao', async (req, res) => {
     } catch (error) {
         console.error('Erro no cálculo da sugestão:', error.message);
         res.status(500).json({ error: 'Erro interno ao calcular a sugestão.' });
+    }
+});
+
+// 9. ROTA GET: LISTAR TODOS OS PRODUTOS DO CATÁLOGO (Para o Painel Admin)
+// Ex: GET /api/produtos
+app.get('/api/produtos', authenticateAdmin, async (req, res) => {
+    // Esta rota é administrativa, requer autenticação
+    try {
+        const { data: produtos, error } = await supabase
+            .from('produtos_tamanhos')
+            .select('produto_id, nome_regra, status, id') // Campos essenciais
+            .order('nome_regra', { ascending: true });
+        
+        if (error) {
+            console.error('Erro ao listar produtos:', error);
+            return res.status(500).json({ error: 'Falha ao buscar o catálogo de produtos.' });
+        }
+
+        res.status(200).json({ produtos: produtos });
+    } catch (error) {
+        console.error('Erro na listagem de produtos:', error.message);
+        res.status(500).json({ error: 'Erro interno do servidor.' });
     }
 });
 

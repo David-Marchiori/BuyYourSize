@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '@/supabase' 
-import DashboardView from '@/components/views/DashboardView.vue'
-import LoginView from '@/components/views/LoginView.vue'
+import DashboardView from '@/views/DashboardView.vue'
+import LoginView from '@/views/LoginView.vue'
+import CatalogView from '@/views/CatalogView.vue'
+import RulesView from '@/views/RulesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,6 +19,18 @@ const router = createRouter({
       component: DashboardView,
       // ESTA FLAG DIZ: "Esta rota PRECISA de autenticação"
       meta: { requiresAuth: true } 
+    },
+    {
+      path: '/catalog',
+      name: 'catalog',
+      component: CatalogView
+    },
+    {
+      // Rota dinâmica para gerenciar regras de um produto
+      path: '/rules/:produtoId', 
+      name: 'rules',
+      component: RulesView,
+      props: true // Permite passar produtoId como prop se preferir
     }
   ]
 })

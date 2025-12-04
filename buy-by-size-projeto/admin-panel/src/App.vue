@@ -1,5 +1,6 @@
 <script setup>
 import { RouterView } from 'vue-router'
+import CatalogView from './views/CatalogView.vue';
 
 // Não precisamos de componentes ou lógica adicional aqui, 
 // a menos que você queira um cabeçalho/navegação que seja 
@@ -8,7 +9,8 @@ import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <RouterView />
+  <CatalogView/>
+  <!-- <RouterView /> -->
 </template>
 
 <style>
