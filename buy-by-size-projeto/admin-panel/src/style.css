@@ -1,79 +1,145 @@
+/* src/assets/main.css */
+
+/* ------------------------------------------- */
+/* 1. VARIÁVEIS ROOT & RESET BÁSICO */
+/* ------------------------------------------- */
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+    /* Cores do Dashboard Clean */
+    --color-primary: #007bff; /* Azul vibrante para ações principais (VTEX usa azul) */
+    --color-secondary: #6c757d; /* Cinza suave */
+    --color-success: #28a745;
+    --color-error: #dc3545;
+    --color-warning: #ffc107;
+    
+    /* Fundos */
+    --color-background-soft: #f8f9fa; /* Fundo principal (branco acinzentado) */
+    --color-background-card: #ffffff; /* Fundo de cards e menus */
+    
+    /* Texto */
+    --color-text-main: #212529; /* Preto suave */
+    --color-text-light: #495057; /* Cinza para labels/detalhes */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    /* Sombras/Bordas */
+    --shadow-light: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --border-radius: 0.3rem;
+    
+    /* Tipografia (Usaremos uma fonte moderna e limpa) */
+    --font-family-base: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* Reset Básico */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    font-weight: normal;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+    min-height: 100vh;
+    color: var(--color-text-main);
+    background: var(--color-background-soft);
+    font-family: var(--font-family-base);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+    font-size: 16px;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* ------------------------------------------- */
+/* 2. ESTILOS DE COMPONENTES BASE (Inputs, Buttons) */
+/* ------------------------------------------- */
+
+/* Títulos */
+h1 { font-size: 1.8rem; font-weight: 600; margin-bottom: 1.5rem; }
+h2 { font-size: 1.5rem; font-weight: 500; margin-bottom: 1rem; }
+h3 { font-size: 1.2rem; font-weight: 500; margin-bottom: 0.8rem; }
+
+/* Formulários */
+input, select, button {
+    font-family: inherit;
+    font-size: 1rem;
+    border-radius: var(--border-radius);
+    padding: 0.5rem 0.75rem;
+    outline: none;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.card {
-  padding: 2em;
-}
-
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
+input:not([type="checkbox"]), select {
+    border: 1px solid #ced4da;
     background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+input:focus, select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Botões */
+button {
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: var(--color-secondary);
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-success {
+    background-color: var(--color-success);
+    color: white;
+}
+.btn-success:hover {
+    background-color: #1e7e34;
+}
+
+.btn-danger {
+    background-color: var(--color-error);
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #bd2130;
+}
+
+/* Containers de Dados (Card Style) */
+.data-card {
+    background-color: var(--color-background-card);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-light);
+    margin-bottom: 20px;
+}
+
+/* Mensagens de Status */
+.message-success, .message-error {
+    padding: 10px;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    margin-top: 10px;
+}
+.message-success {
+    background-color: #d4edda;
+    color: var(--color-success);
+    border: 1px solid #c3e6cb;
+}
+.message-error {
+    background-color: #f8d7da;
+    color: var(--color-error);
+    border: 1px solid #f5c6cb;
 }

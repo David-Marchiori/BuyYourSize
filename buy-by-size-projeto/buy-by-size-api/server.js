@@ -7,6 +7,46 @@ const axios = require('axios'); // Novo para baixar o XML
 const xml2js = require('xml2js'); // Novo para fazer o parsing do XML
 const app = express();
 const PORT = process.env.PORT || 3000;
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+
+// --- Configuração do Swagger ---
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Buy by Size API',
+      version: '1.0.0',
+      description: 'API para gerenciamento de regras de medidas e sugestão de tamanhos.',
+    },
+    servers: [
+      {
+        url: `http://localhost:${process.env.PORT || 3000}`,
+        description: 'Servidor Local',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        ApiKeyAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key', // O nome do header que configuramos
+        },
+      },
+    },
+    security: [
+      {
+        ApiKeyAuth: [],
+      },
+    ],
+  },
+  // Arquivos onde o Swagger vai procurar os comentários de documentação
+  apis: ['./server.js'], 
+};
+
+const swaggerDocs = swaggerJsdoc(swaggerOptions);
+// Rota para acessar a documentação
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 const supabase = createClient(
   process.env.SUPABASE_URL, 
@@ -65,6 +105,7 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json()); 
 
 // 3. Rota de Status (Teste Inicial)
+
 app.get('/api/status', authenticateAdmin, (req, res) => {
   res.json({ status: 'ok', service: 'Buy by Size API', environment: process.env.NODE_ENV || 'development' });
 });

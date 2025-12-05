@@ -1,211 +1,438 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router'; // Para ler o parâmetro produto_id
+import { useRoute, useRouter } from 'vue-router';
 import { getProductRules, saveRule, deleteRule } from '@/api/apiService';
+import { 
+  ArrowLeft, Plus, Save, Trash2, Edit2, X, 
+  AlertCircle, CheckCircle2, Ruler, ArrowRight,
+  ChevronUp, ChevronDown, MoreVertical
+} from 'lucide-vue-next';
 
-// Tipos de operadores lógicos disponíveis para o lojista
+// --- CONSTANTES & UTILS ---
 const OPERATORS = [
-    { value: '>=', label: 'Maior ou Igual a' },
-    { value: '<=', label: 'Menor ou Igual a' },
-    { value: '>', label: 'Maior que' },
-    { value: '<', label: 'Menor que' },
-    { value: '==', label: 'Igual a' },
+    { value: '>=', label: 'Maior ou Igual (>=)' },
+    { value: '<=', label: 'Menor ou Igual (<=)' },
+    { value: '>', label: 'Maior que (>)' },
+    { value: '<', label: 'Menor que (<)' },
+    { value: '==', label: 'Igual a (=)' },
 ];
 
+const FIELDS = [
+    { value: 'altura', label: 'Altura (m)', step: 0.01, placeholder: '1.75' },
+    { value: 'peso', label: 'Peso (kg)', step: 0.1, placeholder: '70.5' },
+    { value: 'busto', label: 'Busto (cm)', step: 1, placeholder: '90' },
+    { value: 'cintura', label: 'Cintura (cm)', step: 1, placeholder: '70' },
+    { value: 'quadril', label: 'Quadril (cm)', step: 1, placeholder: '100' },
+];
+
+// --- ESTADOS ---
 const route = useRoute();
-// Pegamos o produto_id da URL (Assumindo que você usará roteamento Vue)
+const router = useRouter();
 const produtoId = ref(route.params.produtoId); 
-const produtoNome = ref(''); // Para exibição
 const rules = ref([]);
 const loading = ref(true);
-const currentRule = ref(null); // Regra sendo editada ou criada
 const isEditing = ref(false);
+const showForm = ref(false); // Controla visibilidade do formulário
 const message = ref('');
 const errorMessage = ref('');
 
-// Estado inicial de uma nova condição
-const newConditionState = () => ({
-    campo: 'altura', // Default
-    operador: '>=',  // Default
-    valor: 0
-});
+// Estado da Regra Atual
+const currentRule = ref(null);
 
-// Estado inicial de uma nova regra
+// --- LÓGICA DE NEGÓCIO ---
+
+// Estado inicial para nova regra
 const newRuleState = () => ({
     produto_id: produtoId.value,
-    condicoes: [newConditionState()], // Começa com 1 condição
-    sugestao_tamanho: 'P',
-    prioridade: 0
+    condicoes: [{ campo: 'altura', operador: '>=', valor: '' }],
+    sugestao_tamanho: '',
+    prioridade: 10
 });
-
-// --- Funções de API ---
 
 const fetchRules = async () => {
     loading.value = true;
     errorMessage.value = '';
     try {
-        // Supondo que você também passará o nome do produto na navegação
-        // Por enquanto, buscamos apenas as regras
-        const fetchedRules = await getProductRules(produtoId.value);
-        rules.value = fetchedRules;
-        if (fetchedRules.length > 0) {
-            produtoNome.value = fetchedRules[0].nome_regra || 'Produto Sem Nome';
-        }
+        rules.value = await getProductRules(produtoId.value);
     } catch (err) {
-        errorMessage.value = 'Falha ao carregar regras. Verifique a API Key e o ID do produto.';
+        errorMessage.value = 'Erro ao carregar regras.';
         console.error(err);
     } finally {
         loading.value = false;
     }
 };
 
-const startCreate = () => {
+const openCreateForm = () => {
     currentRule.value = newRuleState();
-    isEditing.value = true;
+    isEditing.value = false; // Modo Criação
+    showForm.value = true;
+    message.value = '';
 };
 
-const startEdit = (rule) => {
-    // Clona a regra para evitar mutação direta antes de salvar
-    currentRule.value = JSON.parse(JSON.stringify(rule)); 
-    isEditing.value = true;
+const openEditForm = (rule) => {
+    // Deep copy para não alterar a lista enquanto edita
+    currentRule.value = JSON.parse(JSON.stringify(rule));
+    isEditing.value = true; // Modo Edição
+    showForm.value = true;
+    message.value = '';
+};
+
+const closeForm = () => {
+    showForm.value = false;
+    currentRule.value = null;
+    message.value = '';
+    errorMessage.value = '';
 };
 
 const addCondition = () => {
-    currentRule.value.condicoes.push(newConditionState());
+    currentRule.value.condicoes.push({ campo: 'peso', operador: '<', valor: '' });
 };
 
 const removeCondition = (index) => {
     currentRule.value.condicoes.splice(index, 1);
 };
 
-const handleSaveRule = async () => {
+const handleSave = async () => {
     message.value = '';
     errorMessage.value = '';
     
-    // Verificações simples de campos obrigatórios
-    if (!currentRule.value.sugestao_tamanho || currentRule.value.condicoes.length === 0) {
-        errorMessage.value = 'Preencha todos os campos obrigatórios.';
+    // Validação Básica
+    if (!currentRule.value.sugestao_tamanho) {
+        errorMessage.value = 'Informe o Tamanho Sugerido (ex: P, M).';
+        return;
+    }
+    const hasInvalidCondition = currentRule.value.condicoes.some(c => c.valor === '' || c.valor === null);
+    if (hasInvalidCondition) {
+        errorMessage.value = 'Preencha os valores de todas as condições.';
         return;
     }
 
     try {
-        const action = currentRule.value.id ? 'Atualizada' : 'Criada';
-        const result = await saveRule(currentRule.value);
-        message.value = `Regra ${action} com sucesso!`;
-        
-        // Recarrega a lista e fecha o formulário
+        await saveRule(currentRule.value);
+        message.value = isEditing.value ? 'Regra atualizada!' : 'Regra criada com sucesso!';
         await fetchRules();
-        isEditing.value = false;
+        setTimeout(closeForm, 1500); // Fecha após sucesso
     } catch (err) {
-        errorMessage.value = err.response?.data?.error || `Erro ao salvar regra.`;
+        errorMessage.value = err.response?.data?.error || 'Erro ao salvar regra.';
     }
 };
 
-const handleDeleteRule = async (ruleId) => {
-    if (!confirm('Tem certeza que deseja excluir esta regra?')) return;
+const handleDelete = async (ruleId) => {
+    if (!confirm('Tem certeza? Esta ação não pode ser desfeita.')) return;
     
-    message.value = '';
-    errorMessage.value = '';
     try {
         await deleteRule(ruleId);
-        message.value = 'Regra excluída com sucesso!';
-        await fetchRules();
+        await fetchRules(); // Recarrega silenciosamente
     } catch (err) {
-        errorMessage.value = err.response?.data?.error || `Erro ao excluir regra.`;
+        alert('Erro ao excluir regra.');
     }
 };
+
+// Formatação Visual
+const getFieldLabel = (val) => FIELDS.find(f => f.value === val)?.label || val;
+const getOperatorLabel = (val) => OPERATORS.find(o => o.value === val)?.label || val;
 
 onMounted(fetchRules);
 </script>
 
 <template>
-  <div class="rules-view">
-    <button @click="$router.push('/catalog')" class="back-button">Voltar ao Catálogo</button>
+  <div class="page-container">
     
-    <h2>Gerenciar Regras para o Produto: {{ produtoId }}</h2>
-    <p v-if="produtoNome">Nome: <strong>{{ produtoNome }}</strong></p>
-
-    <div v-if="message" class="message-success">{{ message }}</div>
-    <div v-if="errorMessage" class="message-error">{{ errorMessage }}</div>
-
-    <div v-if="isEditing" class="rule-form">
-      <h3>{{ currentRule.id ? 'Editar Regra' : 'Nova Regra' }}</h3>
-
-      <div class="form-group">
-        <label for="sugestao">Tamanho Sugerido:</label>
-        <input id="sugestao" v-model="currentRule.sugestao_tamanho" placeholder="Ex: P, M, G, GG">
+    <div class="page-header animate-up">
+      <div class="header-content">
+        <button class="btn-back" @click="router.back()">
+            <ArrowLeft :size="18" /> Voltar
+        </button>
+        <div>
+            <h1 class="product-title">Regras de Sugestão</h1>
+            <p class="product-subtitle">Produto ID: <span class="mono">{{ produtoId }}</span></p>
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label for="prioridade">Prioridade (Maior valor = Mais importante):</label>
-        <input id="prioridade" type="number" v-model.number="currentRule.prioridade" min="0">
-      </div>
-
-      <h4>Condições (<button @click="addCondition">Adicionar Condição</button>)</h4>
-      
-      <div v-for="(cond, index) in currentRule.condicoes" :key="index" class="condition-row">
-        
-        <select v-model="cond.campo">
-          <option value="altura">Altura (m)</option>
-          <option value="peso">Peso (kg)</option>
-          <option value="busto">Busto (cm)</option>
-          </select>
-        
-        <select v-model="cond.operador">
-          <option v-for="op in OPERATORS" :value="op.value">{{ op.label }}</option>
-        </select>
-        
-        <input type="number" v-model.number="cond.valor" placeholder="Valor">
-        
-        <button @click="removeCondition(index)" :disabled="currentRule.condicoes.length === 1">Remover</button>
-      </div>
-
-      <div class="form-actions">
-        <button @click="handleSaveRule">Salvar Regra</button>
-        <button @click="isEditing = false" class="cancel-button">Cancelar</button>
+      <div class="header-actions">
+        <button class="btn-primary" @click="openCreateForm" :disabled="showForm">
+          <Plus :size="18" /> Nova Regra
+        </button>
       </div>
     </div>
 
-    <div v-else class="rule-list">
-      <button @click="startCreate" class="create-button">Criar Nova Regra</button>
-
-      <div v-if="loading">Carregando regras...</div>
-      <div v-else-if="rules.length === 0">
-        Nenhuma regra cadastrada para este produto. Clique em "Criar Nova Regra".
-      </div>
-      <div v-else>
-        <h3>Regras Ativas (Ordem de Prioridade)</h3>
-        <ul class="rules-ul">
-          <li v-for="rule in rules" :key="rule.id" class="rule-item">
-            <p><strong>Sugestão: {{ rule.sugestao_tamanho }}</strong> (Prioridade: {{ rule.prioridade }})</p>
-            <p class="rule-logic">
-              <span v-for="(cond, index) in rule.condicoes" :key="index">
-                SE {{ cond.campo }} {{ cond.operador }} {{ cond.valor }}
-                <span v-if="index < rule.condicoes.length - 1"> E </span>
-              </span>
-            </p>
-            <div class="rule-actions">
-              <button @click="startEdit(rule)">Editar</button>
-              <button @click="handleDeleteRule(rule.id)" class="delete-button">Excluir</button>
+    <div class="rules-layout">
+        
+        <div class="rules-list-container animate-up" style="animation-delay: 0.1s">
+            
+            <div v-if="loading" class="loading-state">
+                <div class="spinner"></div> Carregando regras...
             </div>
-          </li>
-        </ul>
-      </div>
+
+            <div v-else-if="rules.length === 0" class="empty-state">
+                <div class="icon-circle"><Ruler :size="32" /></div>
+                <h3>Nenhuma regra definida</h3>
+                <p>Crie a primeira regra para que este produto possa ser recomendado.</p>
+                <button class="btn-outline" @click="openCreateForm">Criar Regra Agora</button>
+            </div>
+
+            <div v-else class="rules-grid">
+                <div 
+                    v-for="rule in rules" 
+                    :key="rule.id" 
+                    class="rule-card"
+                    :class="{ 'active': currentRule && currentRule.id === rule.id }"
+                >
+                    <div class="rule-header">
+                        <div class="suggestion-badge">
+                            <span class="label">Sugere</span>
+                            <span class="size">{{ rule.sugestao_tamanho }}</span>
+                        </div>
+                        <div class="priority-badge">
+                            Prioridade {{ rule.prioridade }}
+                        </div>
+                        <div class="actions">
+                            <button class="icon-btn edit" @click="openEditForm(rule)" title="Editar">
+                                <Edit2 :size="16" />
+                            </button>
+                            <button class="icon-btn delete" @click="handleDelete(rule.id)" title="Excluir">
+                                <Trash2 :size="16" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rule-conditions">
+                        <div v-for="(cond, idx) in rule.condicoes" :key="idx" class="condition-chip">
+                            <span class="field">{{ getFieldLabel(cond.campo) }}</span>
+                            <span class="operator">{{ cond.operador }}</span>
+                            <span class="value">{{ cond.valor }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <transition name="slide-fade">
+            <div v-if="showForm" class="rule-editor-panel">
+                <div class="panel-header">
+                    <h3>{{ isEditing ? 'Editar Regra' : 'Nova Regra' }}</h3>
+                    <button class="close-btn" @click="closeForm"><X :size="20" /></button>
+                </div>
+
+                <div class="panel-body">
+                    
+                    <div v-if="errorMessage" class="alert error"><AlertCircle :size="16"/> {{ errorMessage }}</div>
+                    <div v-if="message" class="alert success"><CheckCircle2 :size="16"/> {{ message }}</div>
+
+                    <div class="form-section">
+                        <label>Resultado e Prioridade</label>
+                        <div class="row-inputs">
+                            <div class="input-group">
+                                <span class="input-label">Tamanho Sugerido</span>
+                                <input v-model="currentRule.sugestao_tamanho" placeholder="Ex: M" class="input-lg">
+                            </div>
+                            <div class="input-group">
+                                <span class="input-label">Prioridade</span>
+                                <input type="number" v-model.number="currentRule.prioridade" class="input-lg">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="separator"></div>
+
+                    <div class="form-section">
+                        <div class="section-header">
+                            <label>Condições Lógicas (SE)</label>
+                            <button class="btn-xs" @click="addCondition"><Plus :size="14" /> Adicionar</button>
+                        </div>
+                        
+                        <div class="conditions-list">
+                            <div v-for="(cond, index) in currentRule.condicoes" :key="index" class="condition-row animate-in">
+                                <div class="cond-inputs">
+                                    <select v-model="cond.campo">
+                                        <option v-for="f in FIELDS" :key="f.value" :value="f.value">{{ f.label }}</option>
+                                    </select>
+                                    <select v-model="cond.operador" class="operator-select">
+                                        <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.value }}</option>
+                                    </select>
+                                    <input 
+                                        type="number" 
+                                        v-model.number="cond.valor" 
+                                        :placeholder="FIELDS.find(f => f.value === cond.campo)?.placeholder"
+                                        :step="FIELDS.find(f => f.value === cond.campo)?.step"
+                                    >
+                                </div>
+                                <button 
+                                    class="btn-remove" 
+                                    @click="removeCondition(index)"
+                                    :disabled="currentRule.condicoes.length === 1"
+                                    title="Remover condição"
+                                >
+                                    <X :size="14" />
+                                </button>
+                            </div>
+                        </div>
+                        <p class="hint-text">Todas as condições acima devem ser verdadeiras para sugerir este tamanho.</p>
+                    </div>
+
+                </div>
+
+                <div class="panel-footer">
+                    <button class="btn-text" @click="closeForm">Cancelar</button>
+                    <button class="btn-primary full" @click="handleSave">
+                        <Save :size="18" /> Salvar Regra
+                    </button>
+                </div>
+            </div>
+        </transition>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Estilos básicos para o CRUD de regras */
-.rule-form, .rule-list { margin-top: 20px; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
-.form-group { margin-bottom: 15px; }
-.condition-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
-.condition-row select, .condition-row input { padding: 8px; }
-.rules-ul { list-style: none; padding: 0; }
-.rule-item { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
-.rule-logic { font-style: italic; color: #555; font-size: 0.9em; }
-.rule-actions button { margin-left: 10px; padding: 5px 10px; }
-.create-button { background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
-.delete-button { background-color: #dc3545; color: white; }
-.cancel-button { background-color: #6c757d; color: white; }
+/* Layout Principal da View */
+.page-container { max-width: 1200px; margin: 0 auto; position: relative; }
+
+/* Header */
+.page-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;
+}
+.header-content { display: flex; align-items: center; gap: 16px; }
+.btn-back {
+    display: flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0;
+    background: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; color: #64748b; font-weight: 500;
+    transition: all 0.2s;
+}
+.btn-back:hover { background: #f1f5f9; color: #0f172a; }
+.product-title { font-size: 1.5rem; color: #1e293b; margin: 0; font-weight: 700; }
+.product-subtitle { color: #64748b; font-size: 0.9rem; margin: 0; }
+.mono { font-family: 'Monaco', monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+
+/* Layout Grid (Lista + Painel) */
+.rules-layout {
+    display: flex; gap: 24px; align-items: flex-start; position: relative;
+}
+
+/* Lista de Regras */
+.rules-list-container {
+    flex: 1; min-width: 0; /* Previne overflow */
+}
+
+.rules-grid { display: flex; flex-direction: column; gap: 16px; }
+
+.rule-card {
+    background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: all 0.2s;
+    position: relative; overflow: hidden;
+}
+.rule-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px rgba(0,0,0,0.05); }
+.rule-card.active { border-color: var(--color-primary); background: #f8fafc; }
+
+.rule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+
+.suggestion-badge {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--color-primary); color: white; padding: 8px 16px; border-radius: 8px;
+    min-width: 80px; text-align: center;
+}
+.suggestion-badge .label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.9; }
+.suggestion-badge .size { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+
+.priority-badge {
+    background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+}
+
+.actions { display: flex; gap: 8px; }
+.icon-btn {
+    width: 32px; height: 32px; border-radius: 6px; border: 1px solid transparent;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: #94a3b8; transition: all 0.2s;
+}
+.icon-btn.edit:hover { background: #eff6ff; color: var(--color-primary); }
+.icon-btn.delete:hover { background: #fef2f2; color: var(--color-error); }
+
+.rule-conditions { display: flex; flex-wrap: wrap; gap: 8px; }
+.condition-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; color: #334155;
+}
+.condition-chip .field { font-weight: 600; text-transform: capitalize; }
+.condition-chip .operator { color: #94a3b8; font-weight: 700; font-family: monospace; }
+.condition-chip .value { color: var(--color-primary); font-weight: 700; }
+
+/* Empty State */
+.empty-state {
+    text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px dashed #e2e8f0;
+}
+.icon-circle {
+    width: 64px; height: 64px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: #94a3b8;
+}
+.empty-state h3 { color: #1e293b; margin-bottom: 8px; }
+.empty-state p { color: #64748b; margin-bottom: 24px; }
+
+/* Editor Panel (Lateral) */
+.rule-editor-panel {
+    width: 380px; background: white; border: 1px solid #e2e8f0; border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); position: sticky; top: 20px;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+
+.panel-header {
+    padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.panel-header h3 { font-size: 1.1rem; color: #1e293b; font-weight: 600; margin: 0; }
+.close-btn { background: none; border: none; cursor: pointer; color: #94a3b8; }
+
+.panel-body { padding: 20px; flex: 1; overflow-y: auto; max-height: calc(100vh - 180px); }
+
+.form-section { margin-bottom: 24px; }
+.form-section label { display: block; font-size: 0.85rem; font-weight: 700; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.row-inputs { display: flex; gap: 12px; }
+.input-group { flex: 1; }
+.input-label { display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+.input-lg {
+    width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-weight: 600; color: #1e293b; text-align: center;
+}
+.input-lg:focus { border-color: var(--color-primary); outline: none; }
+
+.separator { height: 1px; background: #e2e8f0; margin: 0 -20px 24px; }
+
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.btn-xs {
+    display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.75rem; background: #eff6ff; color: var(--color-primary); border: none; border-radius: 4px; cursor: pointer; font-weight: 600;
+}
+.btn-xs:hover { background: #dbeafe; }
+
+.condition-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.cond-inputs {
+    flex: 1; display: flex; gap: 8px; background: #f8fafc; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0;
+}
+.cond-inputs select, .cond-inputs input {
+    background: transparent; border: none; font-size: 0.9rem; padding: 6px; outline: none; color: #334155;
+}
+.cond-inputs select { font-weight: 500; }
+.operator-select { width: 50px; text-align: center; font-family: monospace; font-weight: 700; color: #64748b; }
+.cond-inputs input { width: 70px; text-align: right; font-weight: 600; color: var(--color-primary); }
+
+.btn-remove {
+    background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 4px;
+}
+.btn-remove:hover { color: var(--color-error); }
+.btn-remove:disabled { opacity: 0; cursor: default; }
+
+.hint-text { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; font-style: italic; }
+
+.panel-footer {
+    padding: 16px 20px; border-top: 1px solid #e2e8f0; background: #f8fafc;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.btn-primary.full { flex: 1; justify-content: center; }
+
+/* Animações */
+.slide-fade-enter-active, .slide-fade-leave-active { transition: all 0.3s ease; }
+.slide-fade-enter-from, .slide-fade-leave-to { transform: translateX(20px); opacity: 0; }
+
+@media (max-width: 1024px) {
+    .rules-layout { flex-direction: column; }
+    .rule-editor-panel { width: 100%; position: fixed; bottom: 0; top: auto; left: 0; right: 0; border-radius: 16px 16px 0 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
+    .panel-body { max-height: 50vh; }
+}
 </style>
