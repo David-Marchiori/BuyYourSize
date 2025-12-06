@@ -137,7 +137,11 @@ onMounted(fetchRules);
 
 <template>
   <div class="page-container">
-    
+    <!-- Overlay for mobile/tablet when form is open -->
+    <transition name="fade">
+        <div v-if="showForm" class="mobile-overlay" @click="closeForm"></div>
+    </transition>
+
     <div class="page-header animate-up">
       <div class="header-content">
         <button class="btn-back" @click="router.back()">
@@ -182,8 +186,10 @@ onMounted(fetchRules);
                             <span class="label">Sugere</span>
                             <span class="size">{{ rule.sugestao_tamanho }}</span>
                         </div>
-                        <div class="priority-badge">
-                            Prioridade {{ rule.prioridade }}
+                        <div class="rule-meta">
+                            <div class="priority-badge">
+                                Prioridade {{ rule.prioridade }}
+                            </div>
                         </div>
                         <div class="actions">
                             <button class="icon-btn edit" @click="openEditForm(rule)" title="Editar">
@@ -243,17 +249,24 @@ onMounted(fetchRules);
                         <div class="conditions-list">
                             <div v-for="(cond, index) in currentRule.condicoes" :key="index" class="condition-row animate-in">
                                 <div class="cond-inputs">
-                                    <select v-model="cond.campo">
-                                        <option v-for="f in FIELDS" :key="f.value" :value="f.value">{{ f.label }}</option>
-                                    </select>
-                                    <select v-model="cond.operador" class="operator-select">
-                                        <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.value }}</option>
-                                    </select>
+                                    <div class="input-wrapper field-select">
+                                        <select v-model="cond.campo">
+                                            <option v-for="f in FIELDS" :key="f.value" :value="f.value">{{ f.label }}</option>
+                                        </select>
+                                        <ChevronDown :size="14" class="select-arrow"/>
+                                    </div>
+                                    <div class="input-wrapper operator-select">
+                                        <select v-model="cond.operador">
+                                            <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.value }}</option>
+                                        </select>
+                                        <ChevronDown :size="14" class="select-arrow"/>
+                                    </div>
                                     <input 
                                         type="number" 
                                         v-model.number="cond.valor" 
                                         :placeholder="FIELDS.find(f => f.value === cond.campo)?.placeholder"
                                         :step="FIELDS.find(f => f.value === cond.campo)?.step"
+                                        class="value-input"
                                     >
                                 </div>
                                 <button 
@@ -403,17 +416,21 @@ onMounted(fetchRules);
     display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
 }
 .cond-inputs {
-    flex: 1; display: flex; gap: 8px; background: #f8fafc; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0;
+    flex: 1; display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px; border-radius: 8px; border: 1px solid #e2e8f0;
 }
-.cond-inputs select, .cond-inputs input {
-    background: transparent; border: none; font-size: 0.9rem; padding: 6px; outline: none; color: #334155;
+.input-wrapper { position: relative; }
+.field-select { flex: 2; }
+.operator-select { flex: 1; min-width: 60px; }
+.value-input { flex: 1; min-width: 60px; text-align: right; color: var(--color-primary); font-weight: 600; background: white !important; border: 1px solid #e2e8f0 !important; border-radius: 4px !important; padding: 4px 8px !important; }
+
+.cond-inputs select {
+    width: 100%; background: transparent; border: none; font-size: 0.9rem; padding: 4px 20px 4px 4px; outline: none; color: #334155; appearance: none; font-weight: 500; cursor: pointer;
 }
-.cond-inputs select { font-weight: 500; }
-.operator-select { width: 50px; text-align: center; font-family: monospace; font-weight: 700; color: #64748b; }
-.cond-inputs input { width: 70px; text-align: right; font-weight: 600; color: var(--color-primary); }
+.select-arrow { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+.operator-select select { text-align: center; font-family: monospace; font-weight: 700; color: #64748b; padding-right: 14px; }
 
 .btn-remove {
-    background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 4px;
+    background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 4px; flex-shrink: 0;
 }
 .btn-remove:hover { color: var(--color-error); }
 .btn-remove:disabled { opacity: 0; cursor: default; }
@@ -427,12 +444,31 @@ onMounted(fetchRules);
 .btn-primary.full { flex: 1; justify-content: center; }
 
 /* Animações */
+.animate-up { animation: animate-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px); }
+.animate-in { animation: animate-in 0.3s ease forwards; opacity: 0; transform: scale(0.95); }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@keyframes animate-up {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes animate-in {
+    to { opacity: 1; transform: scale(1); }
+}
+
 .slide-fade-enter-active, .slide-fade-leave-active { transition: all 0.3s ease; }
 .slide-fade-enter-from, .slide-fade-leave-to { transform: translateX(20px); opacity: 0; }
 
+.mobile-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 90; backdrop-filter: blur(2px);
+}
+
 @media (max-width: 1024px) {
     .rules-layout { flex-direction: column; }
-    .rule-editor-panel { width: 100%; position: fixed; bottom: 0; top: auto; left: 0; right: 0; border-radius: 16px 16px 0 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
-    .panel-body { max-height: 50vh; }
+    .rule-editor-panel { width: 100%; position: fixed; bottom: 0; top: auto; left: 0; right: 0; border-radius: 16px 16px 0 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.2); }
+    .panel-body { max-height: 60vh; }
+    .mobile-overlay { display: block; }
+    .slide-fade-enter-from, .slide-fade-leave-to { transform: translateY(100%); opacity: 1; }
 }
 </style>
