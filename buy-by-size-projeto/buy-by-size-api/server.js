@@ -1,5 +1,5 @@
 // server.js
-require('dotenv').config(); 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -7,49 +7,49 @@ const axios = require('axios'); // Novo para baixar o XML
 const xml2js = require('xml2js'); // Novo para fazer o parsing do XML
 const app = express();
 const PORT = process.env.PORT || 3000;
-const swaggerUi = require('swagger-ui-express');
-const swaggerJsdoc = require('swagger-jsdoc');
+// const swaggerUi = require('swagger-ui-express');
+// const swaggerJsdoc = require('swagger-jsdoc');
 
 // --- Configuração do Swagger ---
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Buy by Size API',
-      version: '1.0.0',
-      description: 'API para gerenciamento de regras de medidas e sugestão de tamanhos.',
-    },
-    servers: [
-      {
-        url: `http://localhost:${process.env.PORT || 3000}`,
-        description: 'Servidor Local',
-      },
-    ],
-    components: {
-      securitySchemes: {
-        ApiKeyAuth: {
-          type: 'apiKey',
-          in: 'header',
-          name: 'X-API-Key', // O nome do header que configuramos
-        },
-      },
-    },
-    security: [
-      {
-        ApiKeyAuth: [],
-      },
-    ],
-  },
-  // Arquivos onde o Swagger vai procurar os comentários de documentação
-  apis: ['./server.js'], 
-};
+// const swaggerOptions = {
+//   definition: {
+//     openapi: '3.0.0',
+//     info: {
+//       title: 'Buy by Size API',
+//       version: '1.0.0',
+//       description: 'API para gerenciamento de regras de medidas e sugestão de tamanhos.',
+//     },
+//     servers: [
+//       {
+//         url: `http://localhost:${process.env.PORT || 3000}`,
+//         description: 'Servidor Local',
+//       },
+//     ],
+//     components: {
+//       securitySchemes: {
+//         ApiKeyAuth: {
+//           type: 'apiKey',
+//           in: 'header',
+//           name: 'X-API-Key', // O nome do header que configuramos
+//         },
+//       },
+//     },
+//     security: [
+//       {
+//         ApiKeyAuth: [],
+//       },
+//     ],
+//   },
+//   // Arquivos onde o Swagger vai procurar os comentários de documentação
+//   apis: ['./server.js'], 
+// };
 
-const swaggerDocs = swaggerJsdoc(swaggerOptions);
-// Rota para acessar a documentação
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+// const swaggerDocs = swaggerJsdoc(swaggerOptions);
+// // Rota para acessar a documentação
+// app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 const supabase = createClient(
-  process.env.SUPABASE_URL, 
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
@@ -76,13 +76,13 @@ const corsOptions = {
   // A função verifica se a origem da requisição está na lista allowedOrigins
   origin: (origin, callback) => {
     // Permite requisições sem 'origin' (ex: Postman, scripts de servidor)
-    if (!origin) return callback(null, true); 
-    
+    if (!origin) return callback(null, true);
+
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       // Bloqueia se a origem não for permitida
-      callback(new Error('Not allowed by CORS'), false); 
+      callback(new Error('Not allowed by CORS'), false);
     }
   },
   // Define os métodos permitidos
@@ -94,15 +94,15 @@ const corsOptions = {
 // Middleware para que o frontend possa se comunicar com o backend
 // Use a configuração CORS restrita em produção, e a aberta em desenvolvimento
 if (process.env.NODE_ENV === 'production') {
-    app.use(cors(corsOptions)); 
+  app.use(cors(corsOptions));
 } else {
-    // Permite todas as origens para facilitar o desenvolvimento local/Codespaces
-    app.use(cors()); 
+  // Permite todas as origens para facilitar o desenvolvimento local/Codespaces
+  app.use(cors());
 }
 
 
 // Middleware para analisar o corpo das requisições JSON
-app.use(express.json()); 
+app.use(express.json());
 
 // 3. Rota de Status (Teste Inicial)
 
@@ -113,59 +113,60 @@ app.get('/api/status', authenticateAdmin, (req, res) => {
 
 // ROTA DE SINCRONIZAÇÃO DE CATÁLOGO VIA XML URL
 app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
-  const { xmlUrl } = req.body; // Espera-se que o frontend envie a URL no corpo da requisição
+  const { xmlUrl } = req.body;
 
   if (!xmlUrl) {
     return res.status(400).json({ error: 'A URL do feed XML é obrigatória.' });
   }
 
   try {
-    // 1. Baixar o conteúdo do XML
+    // 1. Baixar e Parsear XML
     const xmlResponse = await axios.get(xmlUrl);
-    const xmlContent = xmlResponse.data;
-
-    // 2. Converter XML para um objeto JavaScript
     const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
-    const result = await parser.parseStringPromise(xmlContent);
+    const result = await parser.parseStringPromise(xmlResponse.data);
 
-    // 3. Extrair a lista de produtos (ESTE CAMINHO PODE MUDAR dependendo do feed XML real)
-    // Assumimos um formato comum como o do Google Merchant:
+    // Adapte o caminho conforme seu XML (ex: result.rss.channel.item ou result.feed.entry)
     const itemsPath = result.rss?.channel?.item || result.feed?.entry || [];
-    
-    // 4. Preparar dados para o Supabase
-    const produtosParaSincronizar = itemsPath.map(item => ({
-      // Mapeamos a ID do Google Merchant (g:id) para a coluna produto_id
-      produto_id: item['g:id'] || item.link || null, // <--- CORRIGIDO AQUI!
-      
-      // Mapeamos o Título do Google Merchant (g:title) para o nome da regra
-      nome_regra: item['g:title'] || 'Produto sem nome', // <--- CORRIGIDO AQUI!
-      
-      campos_necessarios: {}, 
-    })).filter(p => p.produto_id !== null); // Remove itens sem ID
 
-    // 5. Inserir/Atualizar no Supabase (usamos 'upsert' para evitar erros de duplicidade no 'produto_id')
+    // 2. Preparar dados
+    const produtosParaSincronizar = itemsPath.map(item => ({
+      produto_id: item['g:id'] || item.link || null,
+      nome_regra: item['g:title'] || 'Produto sem nome',
+      campos_necessarios: {},
+    })).filter(p => p.produto_id !== null);
+
+    // 3. Inserir Produtos (Upsert)
     const { error: dbError, data: dbData } = await supabase
       .from('produtos_tamanhos')
-      .upsert(produtosParaSincronizar, { onConflict: 'produto_id' }) // Se o produto_id já existir, ele atualiza
+      .upsert(produtosParaSincronizar, { onConflict: 'produto_id' })
       .select();
 
-    if (dbError) {
-      console.error('Erro ao sincronizar com o Supabase:', dbError);
-      return res.status(500).json({ 
-        error: 'Falha na inserção/atualização do banco de dados.', 
-        details: dbError.message 
-      });
-    }
+    if (dbError) throw dbError;
+
+    // --- NOVO: GRAVAR LOG DE SUCESSO ---
+    // Aqui escrevemos no "Diário de Bordo" que tudo deu certo
+    await supabase.from('sync_logs').insert([{
+      status: 'success',
+      details: `${dbData.length} produtos processados com sucesso.`
+    }]);
 
     res.json({
       success: true,
       synced_count: dbData.length,
-      message: `${dbData.length} produtos sincronizados ou atualizados com sucesso.`,
+      message: `${dbData.length} produtos sincronizados.`,
     });
 
   } catch (error) {
-    console.error('Erro geral no processamento do XML:', error.message);
-    res.status(500).json({ error: 'Erro ao processar o feed XML ou baixar a URL.', details: error.message });
+    console.error('Erro no processamento do XML:', error.message);
+
+    // --- NOVO: GRAVAR LOG DE ERRO ---
+    // Se algo falhar, também escrevemos no "Diário" explicando o porquê
+    await supabase.from('sync_logs').insert([{
+      status: 'error',
+      details: `Falha: ${error.message || 'Erro desconhecido'}`
+    }]);
+
+    res.status(500).json({ error: 'Erro ao processar XML.', details: error.message });
   }
 });
 
@@ -212,10 +213,10 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
       return res.status(500).json({ error: 'Falha ao salvar a regra no banco de dados.' });
     }
 
-    res.status(201).json({ 
-      success: true, 
-      message: 'Regra de tamanho criada com sucesso!', 
-      regra: insertData[0] 
+    res.status(201).json({
+      success: true,
+      message: 'Regra de tamanho criada com sucesso!',
+      regra: insertData[0]
     });
 
   } catch (error) {
@@ -298,16 +299,16 @@ app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
       console.error('Erro ao atualizar regra:', updateError);
       return res.status(500).json({ error: 'Falha ao atualizar a regra.' });
     }
-    
+
     // Confirma se alguma linha foi realmente atualizada
     if (updateData.length === 0) {
-        return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
+      return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: 'Regra atualizada com sucesso!', 
-      regra: updateData[0] 
+    res.status(200).json({
+      success: true,
+      message: 'Regra atualizada com sucesso!',
+      regra: updateData[0]
     });
 
   } catch (error) {
@@ -330,16 +331,16 @@ app.delete('/api/regras/:id', authenticateAdmin, async (req, res) => {
       console.error('Erro ao excluir regra:', error);
       return res.status(500).json({ error: 'Falha ao excluir a regra do banco de dados.' });
     }
-    
+
     // Verifica se a exclusão realmente ocorreu
     if (count === 0) {
-        return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
+      return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
     }
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: 'Regra excluída com sucesso!',
-      deleted_id: id 
+      deleted_id: id
     });
 
   } catch (error) {
@@ -351,130 +352,216 @@ app.delete('/api/regras/:id', authenticateAdmin, async (req, res) => {
 // FUNÇÃO AUXILIAR PARA AVALIAR UMA CONDIÇÃO
 // Esta função faz a comparação lógica (ex: 1.80 > 1.75)
 const evaluateCondition = (medidaCliente, operador, valorRegra) => {
-    switch (operador) {
-        case '>': return medidaCliente > valorRegra;
-        case '>=': return medidaCliente >= valorRegra;
-        case '<': return medidaCliente < valorRegra;
-        case '<=': return medidaCliente <= valorRegra;
-        case '==': return medidaCliente == valorRegra;
-        case '!=': return medidaCliente != valorRegra;
-        default: return false;
-    }
+  switch (operador) {
+    case '>': return medidaCliente > valorRegra;
+    case '>=': return medidaCliente >= valorRegra;
+    case '<': return medidaCliente < valorRegra;
+    case '<=': return medidaCliente <= valorRegra;
+    case '==': return medidaCliente == valorRegra;
+    case '!=': return medidaCliente != valorRegra;
+    default: return false;
+  }
 };
 
 // 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO
 app.post('/api/sugestao', async (req, res) => {
-    // Dados esperados: produto_id e as medidas do cliente (ex: altura, peso)
-    const { produto_id, medidas } = req.body; 
+  // Dados esperados: produto_id e as medidas do cliente (ex: altura, peso)
+  const { produto_id, medidas } = req.body;
 
-    if (!produto_id || !medidas) {
-        return res.status(400).json({ error: 'Produto ID e medidas do cliente são obrigatórios.' });
+  if (!produto_id || !medidas) {
+    return res.status(400).json({ error: 'Produto ID e medidas do cliente são obrigatórios.' });
+  }
+
+  try {
+    // 1. Encontrar o ID da Regra Mestre
+    const { data: produtoData, error: findError } = await supabase
+      .from('produtos_tamanhos')
+      .select('id')
+      .eq('produto_id', produto_id)
+      .single();
+
+    if (findError || !produtoData) {
+      return res.status(404).json({ error: 'Produto não encontrado para cálculo de sugestão.' });
     }
 
-    try {
-        // 1. Encontrar o ID da Regra Mestre
-        const { data: produtoData, error: findError } = await supabase
-            .from('produtos_tamanhos')
-            .select('id')
-            .eq('produto_id', produto_id)
-            .single();
+    const regra_mestre_id = produtoData.id;
 
-        if (findError || !produtoData) {
-            return res.status(404).json({ error: 'Produto não encontrado para cálculo de sugestão.' });
-        }
+    // 2. Buscar todas as regras de sugestão para este produto
+    const { data: regras, error: fetchError } = await supabase
+      .from('regras_detalhes')
+      .select('*')
+      .eq('regra_mestre_id', regra_mestre_id)
+      .order('prioridade', { ascending: false }); // Prioriza regras mais importantes
 
-        const regra_mestre_id = produtoData.id;
-
-        // 2. Buscar todas as regras de sugestão para este produto
-        const { data: regras, error: fetchError } = await supabase
-            .from('regras_detalhes')
-            .select('*')
-            .eq('regra_mestre_id', regra_mestre_id)
-            .order('prioridade', { ascending: false }); // Prioriza regras mais importantes
-
-        if (fetchError || regras.length === 0) {
-            return res.status(200).json({ 
-                sugestao: null, 
-                message: 'Nenhuma regra de tamanho cadastrada para este produto.' 
-            });
-        }
-
-        // 3. Iterar e Avaliar as Regras
-        let sugestaoEncontrada = null;
-
-        for (const regra of regras) {
-            let todasCondicoesVerdadeiras = true;
-
-            // Itera sobre as condições da regra (ex: [{"campo": "altura", ...}, {"campo": "peso", ...}])
-            for (const condicao of regra.condicoes) {
-                const medidaCliente = medidas[condicao.campo];
-                const valorRegra = condicao.valor;
-
-                // 3a. Verifica se o cliente forneceu a medida que a regra exige
-                if (medidaCliente === undefined || medidaCliente === null) {
-                    todasCondicoesVerdadeiras = false;
-                    break; // Sai do loop de condições, pois falta dado
-                }
-
-                // 3b. Executa a comparação (ex: Altura do cliente > 1.75)
-                const resultado = evaluateCondition(
-                    parseFloat(medidaCliente), 
-                    condicao.operador, 
-                    parseFloat(valorRegra)
-                );
-
-                if (!resultado) {
-                    todasCondicoesVerdadeiras = false;
-                    break; // Sai do loop de condições, pois uma falhou
-                }
-            }
-
-            // 3c. Se todas as condições da regra forem verdadeiras, encontramos a sugestão!
-            if (todasCondicoesVerdadeiras) {
-                sugestaoEncontrada = regra.sugestao_tamanho;
-                break; // Encontramos a regra de maior prioridade válida, então paramos
-            }
-        }
-        
-        // 4. Retorno Final
-        if (sugestaoEncontrada) {
-            res.status(200).json({ 
-                sugestao: sugestaoEncontrada, 
-                message: 'Sugestão calculada com sucesso.' 
-            });
-        } else {
-            res.status(200).json({ 
-                sugestao: null, 
-                message: 'Nenhuma regra corresponde às medidas fornecidas.' 
-            });
-        }
-
-    } catch (error) {
-        console.error('Erro no cálculo da sugestão:', error.message);
-        res.status(500).json({ error: 'Erro interno ao calcular a sugestão.' });
+    if (fetchError || regras.length === 0) {
+      return res.status(200).json({
+        sugestao: null,
+        message: 'Nenhuma regra de tamanho cadastrada para este produto.'
+      });
     }
+
+    // 3. Iterar e Avaliar as Regras
+    let sugestaoEncontrada = null;
+
+    for (const regra of regras) {
+      let todasCondicoesVerdadeiras = true;
+
+      // Itera sobre as condições da regra (ex: [{"campo": "altura", ...}, {"campo": "peso", ...}])
+      for (const condicao of regra.condicoes) {
+        const medidaCliente = medidas[condicao.campo];
+        const valorRegra = condicao.valor;
+
+        // 3a. Verifica se o cliente forneceu a medida que a regra exige
+        if (medidaCliente === undefined || medidaCliente === null) {
+          todasCondicoesVerdadeiras = false;
+          break; // Sai do loop de condições, pois falta dado
+        }
+
+        // 3b. Executa a comparação (ex: Altura do cliente > 1.75)
+        const resultado = evaluateCondition(
+          parseFloat(medidaCliente),
+          condicao.operador,
+          parseFloat(valorRegra)
+        );
+
+        if (!resultado) {
+          todasCondicoesVerdadeiras = false;
+          break; // Sai do loop de condições, pois uma falhou
+        }
+      }
+
+      // 3c. Se todas as condições da regra forem verdadeiras, encontramos a sugestão!
+      if (todasCondicoesVerdadeiras) {
+        sugestaoEncontrada = regra.sugestao_tamanho;
+        break; // Encontramos a regra de maior prioridade válida, então paramos
+      }
+    }
+
+    // 4. Retorno Final
+    if (sugestaoEncontrada) {
+      res.status(200).json({
+        sugestao: sugestaoEncontrada,
+        message: 'Sugestão calculada com sucesso.'
+      });
+    } else {
+      res.status(200).json({
+        sugestao: null,
+        message: 'Nenhuma regra corresponde às medidas fornecidas.'
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro no cálculo da sugestão:', error.message);
+    res.status(500).json({ error: 'Erro interno ao calcular a sugestão.' });
+  }
 });
 
 // 9. ROTA GET: LISTAR TODOS OS PRODUTOS DO CATÁLOGO (Para o Painel Admin)
 // Ex: GET /api/produtos
 app.get('/api/produtos', authenticateAdmin, async (req, res) => {
-    // Esta rota é administrativa, requer autenticação
-    try {
-        const { data: produtos, error } = await supabase
-            .from('produtos_tamanhos')
-            .select('produto_id, nome_regra, status, id') // Campos essenciais
-            .order('nome_regra', { ascending: true });
-        
-        if (error) {
-            console.error('Erro ao listar produtos:', error);
-            return res.status(500).json({ error: 'Falha ao buscar o catálogo de produtos.' });
-        }
+  // Esta rota é administrativa, requer autenticação
+  try {
+    const { data: produtos, error } = await supabase
+      .from('produtos_tamanhos')
+      .select('produto_id, nome_regra, status, id') // Campos essenciais
+      .order('nome_regra', { ascending: true });
 
-        res.status(200).json({ produtos: produtos });
-    } catch (error) {
-        console.error('Erro na listagem de produtos:', error.message);
-        res.status(500).json({ error: 'Erro interno do servidor.' });
+    if (error) {
+      console.error('Erro ao listar produtos:', error);
+      return res.status(500).json({ error: 'Falha ao buscar o catálogo de produtos.' });
     }
+
+    res.status(200).json({ produtos: produtos });
+  } catch (error) {
+    console.error('Erro na listagem de produtos:', error.message);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+});
+
+// 10. ROTAS DE CONFIGURAÇÃO DA LOJA
+
+// GET /api/store-config
+app.get('/api/store-config', authenticateAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('store_config')
+      .select('*')
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    // Se não existir, retorna 404 para o front tratar ou objeto padrão
+    if (!data) return res.status(404).json({ error: 'Configuração não encontrada' });
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
+  }
+});
+
+// POST /api/store-config (Salvar/Atualizar)
+app.post('/api/store-config', authenticateAdmin, async (req, res) => {
+  const settings = req.body;
+  try {
+    // Tenta buscar se existe para pegar o ID
+    const { data: existing } = await supabase.from('store_config').select('id').single();
+
+    let result;
+    if (existing) {
+      result = await supabase.from('store_config').update(settings).eq('id', existing.id);
+    } else {
+      result = await supabase.from('store_config').insert([settings]);
+    }
+
+    if (result.error) throw result.error;
+    res.json({ success: true, message: 'Configuração salva' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar configurações' });
+  }
+});
+
+// 11. ROTA DE LOGS
+
+// GET /api/sync-logs
+app.get('/api/sync-logs', authenticateAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('sync_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    res.json({ logs: data });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
+// 12. ROTA GET: ESTATÍSTICAS DE REGRAS (Para filtrar "Minhas Regras")
+app.get('/api/regras/stats', authenticateAdmin, async (req, res) => {
+  try {
+    // Busca apenas os IDs das regras cadastradas
+    const { data, error } = await supabase
+      .from('regras_detalhes')
+      .select('regra_mestre_id');
+
+    if (error) {
+      console.error('Erro ao buscar stats:', error);
+      return res.status(500).json({ error: 'Erro ao buscar estatísticas.' });
+    }
+
+    // Processa os dados para contar: { 'UUID_DO_PRODUTO': 3, 'OUTRO_UUID': 1 }
+    const stats = {};
+    data.forEach(item => {
+      const id = item.regra_mestre_id;
+      stats[id] = (stats[id] || 0) + 1;
+    });
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Erro geral stats:', error);
+    res.status(500).json({ error: 'Erro interno.' });
+  }
 });
 
 app.listen(PORT, () => {

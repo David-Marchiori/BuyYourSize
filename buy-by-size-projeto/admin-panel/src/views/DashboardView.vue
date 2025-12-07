@@ -1,27 +1,80 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+// Importando a nova função de stats
+import { getCatalogProducts, getConfiguredRuleStats } from '@/api/apiService'; 
 import { 
-  Shirt, AlertTriangle, Ruler, Activity, TrendingUp, 
-  Calendar, ArrowRight, CheckCircle2, MoreHorizontal 
+  Shirt, AlertTriangle, Activity, TrendingUp, 
+  Calendar, ArrowRight, CheckCircle2 
 } from 'lucide-vue-next';
 
-const router = useRouter();
+const router = useRouter(
+      
+);
+const loading = ref(true);
 
-// Dados Mock
+// Estados Reativos
 const kpis = ref({
-    importedProducts: 1245,
-    configuredProducts: 980,
-    missingRules: 265,
-    totalRules: 1520,
-    recommendationsLast30Days: '12.4K'
+    importedProducts: 0,
+    configuredProducts: 0,
+    missingRules: 0,
+    recommendationsLast30Days: '0' 
 });
 
-const attentionProducts = ref([
-    { id: '1005', produto_id: 'SKU-1005', name: 'Calça Jeans Skinny - Azul', reason: 'Sem regra de medidas' },
-    { id: '2010', produto_id: 'SKU-2010', name: 'Blusa de Tule Preto', reason: 'Sem categoria válida' },
-    { id: '3500', produto_id: 'SKU-3500', name: 'Vestido Midi Floral', reason: 'Dados inconsistentes' },
-]);
+const attentionProducts = ref([]);
+
+// --- LÓGICA DE CÁLCULO ---
+const calculateStats = (allProducts, ruleStats) => {
+    const total = allProducts.length;
+    
+    // 1. Configurados: Conta quantos IDs de produtos existem no objeto de estatísticas
+    // ruleStats é algo tipo: { 'uuid-1': 2, 'uuid-2': 1 }
+    const configuredCount = Object.keys(ruleStats).length;
+
+    // 2. Sem Regras: O resto
+    const missingCount = total - configuredCount;
+
+    kpis.value = {
+        importedProducts: total,
+        configuredProducts: configuredCount,
+        missingRules: missingCount < 0 ? 0 : missingCount, // Evita negativo se houver inconsistência
+        recommendationsLast30Days: '0' // Placeholder
+    };
+
+    // 3. Lista de Atenção: Produtos que NÃO estão no ruleStats
+    attentionProducts.value = allProducts
+        .filter(p => !ruleStats[p.id]) // Se não tem chave no stats, não tem regra
+        .slice(0, 5) // Pega só os 5 primeiros
+        .map(p => ({
+            id: p.id,
+            produto_id: p.produto_id,
+            name: p.nome_regra || 'Produto sem nome',
+            reason: 'Regra de medidas pendente'
+        }));
+};
+
+const fetchData = async () => {
+    loading.value = true;
+    try {
+        // Busca Produtos e Stats em paralelo para ser rápido
+        const [productsData, statsData] = await Promise.all([
+            getCatalogProducts(),
+            getConfiguredRuleStats()
+        ]);
+
+        const allProducts = productsData || [];
+        const ruleStats = statsData || {};
+
+        calculateStats(allProducts, ruleStats);
+
+    } catch (err) {
+        console.error('Erro ao carregar dashboard:', err);
+    } finally {
+        loading.value = false;
+    }
+};
+
+onMounted(fetchData);
 </script>
 
 <template>
@@ -29,27 +82,30 @@ const attentionProducts = ref([
     
     <div class="header-section animate-up">
       <div class="header-text">
-        <h1>Bem-vindo, David! 👋</h1>
-        <p>Visão geral do desempenho do seu provador hoje.</p>
+        <h1>Visão Geral</h1>
+        <p>Acompanhe o desempenho e a saúde do seu catálogo.</p>
       </div>
-      <button class="btn-primary" @click="$router.push('/catalog')">
+      <button class="btn-primary" @click="$router.push({name: 'catalog'})">
         Gerenciar Catálogo
       </button>
     </div>
 
-    <div class="stats-grid">
+    <div v-if="loading" class="stats-grid">
+        <div class="stat-card skeleton" v-for="i in 4" :key="i"></div>
+    </div>
+
+    <div v-else class="stats-grid">
       
       <div class="stat-card animate-up" style="animation-delay: 0.1s">
         <div class="stat-header">
           <div class="icon-box blue"><Shirt :size="22" /></div>
-          <MoreHorizontal :size="18" class="more-icon" />
         </div>
         <div class="stat-content">
           <h3>{{ kpis.importedProducts }}</h3>
           <p>Produtos Importados</p>
         </div>
         <div class="stat-footer positive">
-          <TrendingUp :size="14" /> <span>+12 novos hoje</span>
+           <span>Total do catálogo</span>
         </div>
       </div>
 
@@ -62,7 +118,10 @@ const attentionProducts = ref([
           <p>Configurados</p>
         </div>
         <div class="progress-container">
-          <div class="progress-bar" style="width: 78%"></div>
+          <div 
+            class="progress-bar" 
+            :style="{ width: (kpis.importedProducts > 0 ? (kpis.configuredProducts / kpis.importedProducts * 100) : 0) + '%' }"
+          ></div>
         </div>
       </div>
 
@@ -74,8 +133,11 @@ const attentionProducts = ref([
           <h3 class="text-warning">{{ kpis.missingRules }}</h3>
           <p>Sem Regras</p>
         </div>
-        <div class="stat-footer negative">
-          <span>Requer atenção imediata</span>
+        <div class="stat-footer negative" v-if="kpis.missingRules > 0">
+          <span>Requer configuração</span>
+        </div>
+        <div class="stat-footer positive" v-else>
+          <span>Tudo em dia!</span>
         </div>
       </div>
 
@@ -84,11 +146,11 @@ const attentionProducts = ref([
           <div class="icon-box purple"><Activity :size="22" /></div>
         </div>
         <div class="stat-content">
-          <h3 class="text-primary">{{ kpis.recommendationsLast30Days }}</h3>
-          <p>Recomendações (30d)</p>
+          <h3 class="text-primary">-</h3> 
+          <p>Recomendações</p>
         </div>
-        <div class="stat-footer positive">
-          <TrendingUp :size="14" /> <span>+5.3% vs mês anterior</span>
+        <div class="stat-footer">
+          <span>Dados em breve</span>
         </div>
       </div>
 
@@ -101,25 +163,12 @@ const attentionProducts = ref([
           <h3>Desempenho de Recomendações</h3>
           <div class="filter-box">
             <Calendar :size="14" />
-            <select>
-              <option>Últimos 30 dias</option>
-              <option>Últimos 7 dias</option>
-            </select>
+            <span>Em breve</span>
           </div>
         </div>
-        <div class="chart-area">
-          <div class="chart-bars">
-            <div class="bar" style="height: 40%"></div>
-            <div class="bar" style="height: 60%"></div>
-            <div class="bar" style="height: 45%"></div>
-            <div class="bar active" style="height: 85%"></div>
-            <div class="bar" style="height: 55%"></div>
-            <div class="bar" style="height: 70%"></div>
-            <div class="bar" style="height: 65%"></div>
-          </div>
-          <div class="chart-info">
-             <p>Visualização de dados será integrada com Chart.js</p>
-          </div>
+        <div class="chart-area empty-chart">
+             <Activity :size="48" color="#cbd5e1" />
+             <p>Gráfico de analytics será ativado após as primeiras recomendações.</p>
         </div>
       </div>
 
@@ -128,7 +177,13 @@ const attentionProducts = ref([
           <h3>⚠️ Atenção Necessária</h3>
           <span class="badge-count">{{ attentionProducts.length }}</span>
         </div>
-        <div class="list-container">
+        
+        <div v-if="attentionProducts.length === 0" class="empty-list">
+            <CheckCircle2 :size="24" color="#22c55e" />
+            <p>Nenhum produto pendente!</p>
+        </div>
+
+        <div v-else class="list-container">
           <div 
             v-for="item in attentionProducts" 
             :key="item.id" 
@@ -145,7 +200,10 @@ const attentionProducts = ref([
             <ArrowRight :size="16" class="arrow-action" />
           </div>
         </div>
-        <button class="btn-text">Ver todos os problemas</button>
+        
+        <button v-if="attentionProducts.length > 0" class="btn-text" @click="router.push({name: 'CreateRule'})">
+            Ver todos pendentes
+        </button>
       </div>
 
     </div>
@@ -153,167 +211,54 @@ const attentionProducts = ref([
 </template>
 
 <style scoped>
-/* ANIMAÇÕES */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* ESTILOS MANTIDOS IDÊNTICOS */
+.skeleton { background: #f1f5f9; height: 160px; border-radius: 16px; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+.empty-chart { height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; border: 2px dashed #e2e8f0; border-radius: 12px; margin-top: 20px; }
+.empty-list { padding: 40px; text-align: center; color: #64748b; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
-.animate-up {
-  opacity: 0;
-  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* LAYOUT GERAL */
-.dashboard-container {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
-  gap: 16px;
-}
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.animate-up { opacity: 0; animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.dashboard-container { max-width: 1400px; margin: 0 auto; }
+.header-section { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
 .header-text h1 { font-size: 1.75rem; color: #1e293b; margin-bottom: 4px; }
 .header-text p { color: #64748b; }
-
-.btn-primary {
-  padding: 10px 20px;
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 6px -1px rgba(0, 123, 255, 0.2);
-}
+.btn-primary { padding: 10px 20px; background: var(--color-primary); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 123, 255, 0.2); }
 .btn-primary:hover { background: #0069d9; transform: translateY(-1px); }
-
-/* GRID DE CARDS */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.stat-card {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-  transition: all 0.3s ease;
-  cursor: default;
-}
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
-  border-color: #cbd5e1;
-}
-
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 32px; }
+.stat-card { background: white; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); transition: all 0.3s ease; cursor: default; }
+.stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); border-color: #cbd5e1; }
 .stat-header { display: flex; justify-content: space-between; margin-bottom: 16px; }
-.icon-box {
-  width: 44px; height: 44px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-}
+.icon-box { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
 .icon-box.blue { background: #eff6ff; color: #3b82f6; }
 .icon-box.green { background: #f0fdf4; color: #22c55e; }
 .icon-box.orange { background: #fff7ed; color: #f97316; }
 .icon-box.purple { background: #faf5ff; color: #a855f7; }
-
-.more-icon { color: #cbd5e1; cursor: pointer; }
-
 .stat-content h3 { font-size: 1.8rem; font-weight: 700; color: #0f172a; line-height: 1; margin-bottom: 4px; }
 .stat-content p { color: #64748b; font-size: 0.9rem; font-weight: 500; }
-
-.stat-footer {
-  margin-top: 16px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px;
-}
+.stat-footer { margin-top: 16px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
 .stat-footer.positive { color: #22c55e; }
 .stat-footer.negative { color: #f97316; }
-
 .progress-container { height: 6px; background: #f1f5f9; border-radius: 3px; margin-top: 20px; overflow: hidden; }
 .progress-bar { height: 100%; background: #22c55e; border-radius: 3px; }
-
-/* SEÇÃO PRINCIPAL */
-.main-layout-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-}
-
-.card {
-  background: white; border-radius: 16px; border: 1px solid #e2e8f0;
-  padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
+.main-layout-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+.card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .card-header h3 { font-size: 1.1rem; color: #1e293b; font-weight: 600; }
-
-.filter-box {
-  display: flex; align-items: center; gap: 6px;
-  background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b;
-}
+.filter-box { display: flex; align-items: center; gap: 6px; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; }
 .filter-box select { border: none; background: transparent; font-size: 0.85rem; color: #475569; outline: none; }
-
-/* Gráfico Visual */
-.chart-area {
-  height: 280px; position: relative;
-  display: flex; flex-direction: column; justify-content: flex-end;
-}
-.chart-bars {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  height: 200px; padding: 0 10px;
-}
-.bar {
-  width: 8%; background: #e2e8f0; border-radius: 6px 6px 0 0;
-  transition: height 1s ease;
-}
-.bar.active { background: var(--color-primary); }
-.chart-info { text-align: center; color: #94a3b8; font-size: 0.85rem; margin-top: 20px; border-top: 1px dashed #e2e8f0; padding-top: 10px; }
-
-/* Lista de Atenção */
-.badge-count {
-  background: #fee2e2; color: #ef4444; padding: 2px 8px;
-  border-radius: 99px; font-size: 0.75rem; font-weight: 700;
-}
-
-.list-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px; border-radius: 10px;
-  cursor: pointer; transition: background 0.2s;
-  border-bottom: 1px solid #f1f5f9;
-}
+.chart-area { height: 280px; position: relative; display: flex; flex-direction: column; justify-content: flex-end; }
+.badge-count { background: #fee2e2; color: #ef4444; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+.list-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #f1f5f9; }
 .list-item:hover { background: #f8fafc; }
 .list-item:last-child { border-bottom: none; }
-
-.item-icon-wrapper {
-  background: #fef2f2; color: #ef4444;
-  width: 32px; height: 32px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-}
+.item-icon-wrapper { background: #fef2f2; color: #ef4444; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .item-details { flex: 1; display: flex; flex-direction: column; }
 .item-details strong { font-size: 0.9rem; color: #334155; }
 .item-details span { font-size: 0.8rem; color: #64748b; }
 .arrow-action { color: #cbd5e1; opacity: 0; transition: all 0.2s; }
 .list-item:hover .arrow-action { opacity: 1; transform: translateX(3px); color: var(--color-primary); }
-
-.btn-text {
-  width: 100%; margin-top: 16px; padding: 10px;
-  background: #f8fafc; border: none; border-radius: 8px;
-  color: #64748b; font-weight: 500; font-size: 0.9rem; cursor: pointer;
-  transition: 0.2s;
-}
+.btn-text { width: 100%; margin-top: 16px; padding: 10px; background: #f8fafc; border: none; border-radius: 8px; color: #64748b; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: 0.2s; }
 .btn-text:hover { background: #f1f5f9; color: var(--color-primary); }
-
-/* RESPONSIVIDADE */
-@media (max-width: 1024px) {
-  .main-layout-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 1024px) { .main-layout-grid { grid-template-columns: 1fr; } }
 </style>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loja Exemplo - Vestido Floral</title>
+    <style>
+        /* Estilos básicos apenas para a Loja Falsa ficar apresentável */
+        body { font-family: sans-serif; background-color: #f4f4f4; padding: 40px; }
+        .product-container {
+            background: white; max-width: 900px; margin: 0 auto;
+            display: flex; gap: 40px; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .product-image { flex: 1; background: #ddd; height: 400px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; }
+        .product-details { flex: 1; }
+        h1 { margin-top: 0; }
+        .price { font-size: 1.5em; color: #333; font-weight: bold; margin: 10px 0; }
+        .buy-btn { background: black; color: white; padding: 15px 30px; border: none; font-size: 1em; cursor: pointer; width: 100%; margin-top: 20px; }
+        
+        /* ONDE O WIDGET VAI APARECER */
+        #buy-by-size-container { margin-top: 15px; }
+    </style>
+    
+    <link rel="stylesheet" href="widget.css">
+</head>
+<body>
+
+    <div class="product-container">
+        <div class="product-image">Foto do Produto</div>
+
+        <div class="product-details">
+            <h1 id="product-title" data-product-id="3915">Vestido Midi Floral</h1>
+            <p class="price">R$ 199,90</p>
+            
+            <p>Escolha o tamanho:</p>
+            <div>
+                <button>P</button> <button>M</button> <button>G</button>
+            </div>
+
+            <div id="buy-by-size-anchor"></div>
+
+            <button class="buy-btn">Adicionar ao Carrinho</button>
+        </div>
+    </div>
+
+   <script>
+        window.BuyBySizeConfig = {
+            productId: "3915", // ID do produto atual (tem que existir no seu banco)
+            targetElement: "#buy-by-size-anchor" // Onde renderizar o botão
+        };
+    </script>
+
+    <script src="widget.js"></script>
+
+</body>
+</html>

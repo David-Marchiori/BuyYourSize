@@ -6,18 +6,18 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL;
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY;
 
-// Cria uma instância do Axios para a API de Backend, incluindo o cabeçalho de segurança
+// Cria uma instância do Axios para a API de Backend
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    // O header de segurança é obrigatório para as rotas administrativas
     'X-API-Key': ADMIN_API_KEY
   }
 });
 
+// --- PRODUTOS ---
+
 /**
- * Chama a rota para listar todos os produtos importados do catálogo.
  * GET /api/produtos
  */
 export const getCatalogProducts = async () => {
@@ -25,13 +25,12 @@ export const getCatalogProducts = async () => {
     const response = await apiClient.get('/produtos');
     return response.data.produtos;
   } catch (error) {
-    console.error('Erro ao buscar catálogo de produtos:', error.response || error);
+    console.error('Erro ao buscar catálogo:', error.response || error);
     throw error;
   }
 };
 
 /**
- * Chama a rota para sincronizar o catálogo via URL XML.
  * POST /api/produtos/sync-xml
  */
 export const syncCatalog = async (xmlUrl) => {
@@ -43,6 +42,8 @@ export const syncCatalog = async (xmlUrl) => {
     throw error;
   }
 };
+
+// --- REGRAS ---
 
 export const getProductRules = async (produtoId) => {
   try {
@@ -57,19 +58,17 @@ export const getProductRules = async (produtoId) => {
 };
 
 /**
- * Cria ou atualiza uma regra de sugestão.
- * Se 'id' for passado, usa PUT /api/regras/:id
- * Se 'id' for nulo, usa POST /api/regras
+ * Cria ou atualiza uma regra.
  */
 export const saveRule = async (ruleData) => {
   try {
     if (ruleData.id) {
-      // ATUALIZAR (PUT)
+      // PUT /api/regras/:id
       const { id, ...payload } = ruleData;
       const response = await apiClient.put(`/regras/${id}`, payload);
       return response.data;
     } else {
-      // CRIAR (POST)
+      // POST /api/regras
       const response = await apiClient.post('/regras', ruleData);
       return response.data;
     }
@@ -80,7 +79,6 @@ export const saveRule = async (ruleData) => {
 };
 
 /**
- * Exclui uma regra de sugestão.
  * DELETE /api/regras/:id
  */
 export const deleteRule = async (ruleId) => {
@@ -90,6 +88,80 @@ export const deleteRule = async (ruleId) => {
   } catch (error) {
     console.error('Erro ao excluir regra:', error.response || error);
     throw error;
+  }
+};
+
+// --- CONFIGURAÇÕES DA LOJA E LOGS ---
+// (Estas funções agora chamam a API, não o Supabase direto)
+
+/**
+ * GET /api/store-config
+ * Retorna: { xml_url: '...', update_frequency: 24 }
+ */
+export const getStoreSettings = async () => {
+  try {
+    const response = await apiClient.get('/store-config');
+    return response.data; // A API deve retornar o objeto de config
+  } catch (error) {
+    // Se der 404 (ainda não configurado), retorna padrão
+    if (error.response && error.response.status === 404) {
+      return { xml_url: '', update_frequency: 24 };
+    }
+    console.error('Erro ao buscar config da loja:', error);
+    throw error;
+  }
+};
+
+/**
+ * POST /api/store-config
+ * Body: { xml_url: '...', update_frequency: 24 }
+ */
+export const saveStoreSettings = async (settings) => {
+  try {
+    const response = await apiClient.post('/store-config', settings);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao salvar config da loja:', error);
+    throw error;
+  }
+};
+
+/**
+ * GET /api/sync-logs
+ * Busca histórico de logs
+ */
+export const getSyncHistory = async () => {
+  try {
+    const response = await apiClient.get('/sync-logs');
+    return response.data.logs; // Espera { logs: [] }
+  } catch (error) {
+    console.error('Erro ao buscar logs:', error);
+    throw error;
+  }
+};
+
+// Função auxiliar para compatibilidade (pega o último log da lista)
+export const getLastSyncLog = async () => {
+  try {
+    const logs = await getSyncHistory();
+    return logs && logs.length > 0 ? logs[0] : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * GET /api/regras/stats
+ * Retorna objeto com contagem de regras por ID de produto: { "uuid-1": 2, "uuid-2": 1 }
+ */
+export const getConfiguredRuleStats = async () => {
+  try {
+    const response = await apiClient.get('/regras/stats');
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas de regras:', error);
+    // Retorna objeto vazio em caso de erro para não quebrar a tela
+    return {};
   }
 };
 

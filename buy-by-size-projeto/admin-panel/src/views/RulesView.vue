@@ -1,17 +1,16 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getProductRules, saveRule, deleteRule } from '@/api/apiService';
-import { 
-  ArrowLeft, Plus, Save, Trash2, Edit2, X, 
-  AlertCircle, CheckCircle2, Ruler, ArrowRight,
-  ChevronUp, ChevronDown, MoreVertical
+import {
+    ArrowLeft, Plus, Save, Trash2, Edit2, X,
+    AlertCircle, CheckCircle2, Ruler, ChevronRight
 } from 'lucide-vue-next';
 
-// --- CONSTANTES & UTILS ---
+// --- CONSTANTES ---
 const OPERATORS = [
-    { value: '>=', label: 'Maior ou Igual (>=)' },
-    { value: '<=', label: 'Menor ou Igual (<=)' },
+    { value: '>=', label: 'Maior ou Igual (≥)' },
+    { value: '<=', label: 'Menor ou Igual (≤)' },
     { value: '>', label: 'Maior que (>)' },
     { value: '<', label: 'Menor que (<)' },
     { value: '==', label: 'Igual a (=)' },
@@ -28,20 +27,16 @@ const FIELDS = [
 // --- ESTADOS ---
 const route = useRoute();
 const router = useRouter();
-const produtoId = ref(route.params.produtoId); 
+const produtoId = ref(route.params.produtoId);
 const rules = ref([]);
 const loading = ref(true);
+const showForm = ref(false);
 const isEditing = ref(false);
-const showForm = ref(false); // Controla visibilidade do formulário
 const message = ref('');
 const errorMessage = ref('');
-
-// Estado da Regra Atual
 const currentRule = ref(null);
 
-// --- LÓGICA DE NEGÓCIO ---
-
-// Estado inicial para nova regra
+// --- LÓGICA ---
 const newRuleState = () => ({
     produto_id: produtoId.value,
     condicoes: [{ campo: 'altura', operador: '>=', valor: '' }],
@@ -51,12 +46,10 @@ const newRuleState = () => ({
 
 const fetchRules = async () => {
     loading.value = true;
-    errorMessage.value = '';
     try {
         rules.value = await getProductRules(produtoId.value);
     } catch (err) {
         errorMessage.value = 'Erro ao carregar regras.';
-        console.error(err);
     } finally {
         loading.value = false;
     }
@@ -64,375 +57,828 @@ const fetchRules = async () => {
 
 const openCreateForm = () => {
     currentRule.value = newRuleState();
-    isEditing.value = false; // Modo Criação
+    isEditing.value = false;
     showForm.value = true;
-    message.value = '';
+    message.value = ''; errorMessage.value = '';
 };
 
 const openEditForm = (rule) => {
-    // Deep copy para não alterar a lista enquanto edita
     currentRule.value = JSON.parse(JSON.stringify(rule));
-    isEditing.value = true; // Modo Edição
+    isEditing.value = true;
     showForm.value = true;
-    message.value = '';
+    message.value = ''; errorMessage.value = '';
 };
 
-const closeForm = () => {
-    showForm.value = false;
-    currentRule.value = null;
-    message.value = '';
-    errorMessage.value = '';
-};
+const closeForm = () => { showForm.value = false; currentRule.value = null; };
 
-const addCondition = () => {
-    currentRule.value.condicoes.push({ campo: 'peso', operador: '<', valor: '' });
-};
-
-const removeCondition = (index) => {
-    currentRule.value.condicoes.splice(index, 1);
-};
+const addCondition = () => { currentRule.value.condicoes.push({ campo: 'peso', operador: '<', valor: '' }); };
+const removeCondition = (index) => { currentRule.value.condicoes.splice(index, 1); };
 
 const handleSave = async () => {
-    message.value = '';
-    errorMessage.value = '';
-    
-    // Validação Básica
-    if (!currentRule.value.sugestao_tamanho) {
-        errorMessage.value = 'Informe o Tamanho Sugerido (ex: P, M).';
-        return;
-    }
-    const hasInvalidCondition = currentRule.value.condicoes.some(c => c.valor === '' || c.valor === null);
-    if (hasInvalidCondition) {
-        errorMessage.value = 'Preencha os valores de todas as condições.';
-        return;
-    }
+    message.value = ''; errorMessage.value = '';
+
+    if (!currentRule.value.sugestao_tamanho) return errorMessage.value = 'Informe o Tamanho Sugerido.';
+
+    const hasInvalid = currentRule.value.condicoes.some(c => c.valor === '' || c.valor === null);
+    if (hasInvalid) return errorMessage.value = 'Preencha todos os valores das condições.';
 
     try {
         await saveRule(currentRule.value);
-        message.value = isEditing.value ? 'Regra atualizada!' : 'Regra criada com sucesso!';
+        message.value = isEditing.value ? 'Regra atualizada!' : 'Regra criada!';
         await fetchRules();
-        setTimeout(closeForm, 1500); // Fecha após sucesso
+        setTimeout(closeForm, 1000);
     } catch (err) {
-        errorMessage.value = err.response?.data?.error || 'Erro ao salvar regra.';
+        errorMessage.value = err.response?.data?.error || 'Erro ao salvar.';
     }
 };
 
 const handleDelete = async (ruleId) => {
-    if (!confirm('Tem certeza? Esta ação não pode ser desfeita.')) return;
-    
-    try {
-        await deleteRule(ruleId);
-        await fetchRules(); // Recarrega silenciosamente
-    } catch (err) {
-        alert('Erro ao excluir regra.');
-    }
+    if (!confirm('Excluir esta regra permanentemente?')) return;
+    try { await deleteRule(ruleId); await fetchRules(); } catch (err) { alert('Erro ao excluir.'); }
 };
 
-// Formatação Visual
+// Utils visuais
 const getFieldLabel = (val) => FIELDS.find(f => f.value === val)?.label || val;
-const getOperatorLabel = (val) => OPERATORS.find(o => o.value === val)?.label || val;
+const getOperatorLabel = (val) => {
+    const op = OPERATORS.find(o => o.value === val);
+    return op ? op.label.split('(')[0].trim() : val;
+};
 
 onMounted(fetchRules);
 </script>
 
 <template>
-  <div class="page-container">
-    
-    <div class="page-header animate-up">
-      <div class="header-content">
-        <button class="btn-back" @click="router.back()">
-            <ArrowLeft :size="18" /> Voltar
-        </button>
-        <div>
-            <h1 class="product-title">Regras de Sugestão</h1>
-            <p class="product-subtitle">Produto ID: <span class="mono">{{ produtoId }}</span></p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="btn-primary" @click="openCreateForm" :disabled="showForm">
-          <Plus :size="18" /> Nova Regra
-        </button>
-      </div>
-    </div>
+    <div class="page-container">
 
-    <div class="rules-layout">
-        
-        <div class="rules-list-container animate-up" style="animation-delay: 0.1s">
-            
-            <div v-if="loading" class="loading-state">
-                <div class="spinner"></div> Carregando regras...
-            </div>
-
-            <div v-else-if="rules.length === 0" class="empty-state">
-                <div class="icon-circle"><Ruler :size="32" /></div>
-                <h3>Nenhuma regra definida</h3>
-                <p>Crie a primeira regra para que este produto possa ser recomendado.</p>
-                <button class="btn-outline" @click="openCreateForm">Criar Regra Agora</button>
-            </div>
-
-            <div v-else class="rules-grid">
-                <div 
-                    v-for="rule in rules" 
-                    :key="rule.id" 
-                    class="rule-card"
-                    :class="{ 'active': currentRule && currentRule.id === rule.id }"
-                >
-                    <div class="rule-header">
-                        <div class="suggestion-badge">
-                            <span class="label">Sugere</span>
-                            <span class="size">{{ rule.sugestao_tamanho }}</span>
-                        </div>
-                        <div class="priority-badge">
-                            Prioridade {{ rule.prioridade }}
-                        </div>
-                        <div class="actions">
-                            <button class="icon-btn edit" @click="openEditForm(rule)" title="Editar">
-                                <Edit2 :size="16" />
-                            </button>
-                            <button class="icon-btn delete" @click="handleDelete(rule.id)" title="Excluir">
-                                <Trash2 :size="16" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="rule-conditions">
-                        <div v-for="(cond, idx) in rule.condicoes" :key="idx" class="condition-chip">
-                            <span class="field">{{ getFieldLabel(cond.campo) }}</span>
-                            <span class="operator">{{ cond.operador }}</span>
-                            <span class="value">{{ cond.valor }}</span>
-                        </div>
-                    </div>
+        <div class="page-header animate-up">
+            <div class="header-left">
+                <button class="btn-back" @click="router.back()">
+                    <ArrowLeft :size="18" /> Voltar
+                </button>
+                <div class="title-group">
+                    <h1>Regras de Medidas</h1>
+                    <span class="product-badge">ID: {{ produtoId }}</span>
                 </div>
             </div>
+            <button class="btn-primary" @click="openCreateForm" :disabled="showForm">
+                <Plus :size="18" /> Nova Regra
+            </button>
         </div>
 
-        <transition name="slide-fade">
-            <div v-if="showForm" class="rule-editor-panel">
-                <div class="panel-header">
-                    <h3>{{ isEditing ? 'Editar Regra' : 'Nova Regra' }}</h3>
-                    <button class="close-btn" @click="closeForm"><X :size="20" /></button>
+        <div class="content-layout">
+
+            <div class="rules-list animate-up" style="animation-delay: 0.1s">
+
+                <div v-if="loading" class="state-box">Carregando regras...</div>
+
+                <div v-else-if="rules.length === 0" class="state-box empty">
+                    <Ruler :size="40" class="icon-faded" />
+                    <h3>Sem regras configuradas</h3>
+                    <p>O sistema não consegue recomendar este produto sem regras.</p>
+                    <button class="btn-outline" @click="openCreateForm">Criar Primeira Regra</button>
                 </div>
 
-                <div class="panel-body">
-                    
-                    <div v-if="errorMessage" class="alert error"><AlertCircle :size="16"/> {{ errorMessage }}</div>
-                    <div v-if="message" class="alert success"><CheckCircle2 :size="16"/> {{ message }}</div>
-
-                    <div class="form-section">
-                        <label>Resultado e Prioridade</label>
-                        <div class="row-inputs">
-                            <div class="input-group">
-                                <span class="input-label">Tamanho Sugerido</span>
-                                <input v-model="currentRule.sugestao_tamanho" placeholder="Ex: M" class="input-lg">
-                            </div>
-                            <div class="input-group">
-                                <span class="input-label">Prioridade</span>
-                                <input type="number" v-model.number="currentRule.prioridade" class="input-lg">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="separator"></div>
-
-                    <div class="form-section">
-                        <div class="section-header">
-                            <label>Condições Lógicas (SE)</label>
-                            <button class="btn-xs" @click="addCondition"><Plus :size="14" /> Adicionar</button>
-                        </div>
-                        
-                        <div class="conditions-list">
-                            <div v-for="(cond, index) in currentRule.condicoes" :key="index" class="condition-row animate-in">
-                                <div class="cond-inputs">
-                                    <select v-model="cond.campo">
-                                        <option v-for="f in FIELDS" :key="f.value" :value="f.value">{{ f.label }}</option>
-                                    </select>
-                                    <select v-model="cond.operador" class="operator-select">
-                                        <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.value }}</option>
-                                    </select>
-                                    <input 
-                                        type="number" 
-                                        v-model.number="cond.valor" 
-                                        :placeholder="FIELDS.find(f => f.value === cond.campo)?.placeholder"
-                                        :step="FIELDS.find(f => f.value === cond.campo)?.step"
-                                    >
+                <div v-else class="rules-grid">
+                    <div v-for="rule in rules" :key="rule.id" class="rule-card"
+                        :class="{ 'editing': currentRule && currentRule.id === rule.id }">
+                        <div class="card-content">
+                            <div class="rule-conditions">
+                                <span class="label-section">SE AS MEDIDAS FOREM:</span>
+                                <div class="conditions-container">
+                                    <div v-for="(cond, idx) in rule.condicoes" :key="idx" class="condition-badge">
+                                        <span class="cond-field">{{ getFieldLabel(cond.campo) }}</span>
+                                        <span class="cond-op">{{ getOperatorLabel(cond.operador) }}</span>
+                                        <span class="cond-val">{{ cond.valor }}</span>
+                                    </div>
                                 </div>
-                                <button 
-                                    class="btn-remove" 
-                                    @click="removeCondition(index)"
-                                    :disabled="currentRule.condicoes.length === 1"
-                                    title="Remover condição"
-                                >
-                                    <X :size="14" />
+                            </div>
+
+                            <div class="rule-arrow">
+                                <ChevronRight :size="24" />
+                            </div>
+
+                            <div class="rule-result">
+                                <span class="label-section">SUGERIR:</span>
+                                <div class="size-box">{{ rule.sugestao_tamanho }}</div>
+                                <div class="priority-tag">Prioridade {{ rule.prioridade }}</div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer">
+                            <button class="btn-action edit" @click="openEditForm(rule)">
+                                <Edit2 :size="14" /> Editar
+                            </button>
+                            <button class="btn-action delete" @click="handleDelete(rule.id)">
+                                <Trash2 :size="14" /> Excluir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <transition name="slide-in">
+                <div v-if="showForm" class="editor-sidebar">
+                    <div class="sidebar-header">
+                        <h3>{{ isEditing ? 'Editar Regra' : 'Nova Regra' }}</h3>
+                        <button class="close-icon" @click="closeForm">
+                            <X :size="20" />
+                        </button>
+                    </div>
+
+                    <div class="sidebar-content">
+
+                        <div v-if="errorMessage" class="alert error">
+                            <AlertCircle :size="16" /> {{ errorMessage }}
+                        </div>
+                        <div v-if="message" class="alert success">
+                            <CheckCircle2 :size="16" /> {{ message }}
+                        </div>
+
+                        <div class="form-section highlight-section">
+                            <label>Resultado Esperado</label>
+                            <div class="result-inputs">
+                                <div class="input-col">
+                                    <span class="sub-label">Tamanho</span>
+                                    <input v-model="currentRule.sugestao_tamanho" placeholder="Ex: M" class="input-big">
+                                </div>
+                                <div class="input-col">
+                                    <span class="sub-label">Prioridade</span>
+                                    <input type="number" v-model.number="currentRule.prioridade" class="input-big">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="section-top">
+                                <label>Condições</label>
+                                <button class="btn-small" @click="addCondition">
+                                    <Plus :size="14" /> Adicionar
                                 </button>
                             </div>
+
+                            <div class="conditions-list-form">
+                                <div v-for="(cond, index) in currentRule.condicoes" :key="index"
+                                    class="condition-row-stacked">
+
+                                    <div class="row-top">
+                                        <span class="field-label-small">Campo de Medida</span>
+                                        <div class="field-wrapper">
+                                            <select v-model="cond.campo">
+                                                <option v-for="f in FIELDS" :value="f.value">{{ f.label }}</option>
+                                            </select>
+                                            <button class="remove-btn" @click="removeCondition(index)"
+                                                :disabled="currentRule.condicoes.length === 1">
+                                                <Trash2 :size="14" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="row-bottom">
+                                        <div class="half-col">
+                                            <select v-model="cond.operador">
+                                                <option v-for="op in OPERATORS" :value="op.value">{{ op.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div class="half-col">
+                                            <input type="number" v-model.number="cond.valor"
+                                                :placeholder="FIELDS.find(f => f.value === cond.campo)?.placeholder"
+                                                :step="FIELDS.find(f => f.value === cond.campo)?.step">
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <p class="hint-text">Todas as condições devem ser verdadeiras.</p>
                         </div>
-                        <p class="hint-text">Todas as condições acima devem ser verdadeiras para sugerir este tamanho.</p>
+
                     </div>
 
+                    <div class="sidebar-footer">
+                        <button class="btn-text" @click="closeForm">Cancelar</button>
+                        <button class="btn-primary full" @click="handleSave">
+                            <Save :size="18" /> {{ isEditing ? 'Salvar' : 'Criar Regra' }}
+                        </button>
+                    </div>
                 </div>
+            </transition>
 
-                <div class="panel-footer">
-                    <button class="btn-text" @click="closeForm">Cancelar</button>
-                    <button class="btn-primary full" @click="handleSave">
-                        <Save :size="18" /> Salvar Regra
-                    </button>
-                </div>
-            </div>
-        </transition>
-
+        </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
-/* Layout Principal da View */
-.page-container { max-width: 1200px; margin: 0 auto; position: relative; }
+.page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+}
 
-/* Header */
+/* HEADER */
 .page-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
 }
-.header-content { display: flex; align-items: center; gap: 16px; }
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
 .btn-back {
-    display: flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0;
-    background: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; color: #64748b; font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.btn-back:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.title-group h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.product-badge {
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #64748b;
+    font-family: monospace;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     transition: all 0.2s;
-}
-.btn-back:hover { background: #f1f5f9; color: #0f172a; }
-.product-title { font-size: 1.5rem; color: #1e293b; margin: 0; font-weight: 700; }
-.product-subtitle { color: #64748b; font-size: 0.9rem; margin: 0; }
-.mono { font-family: 'Monaco', monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
-
-/* Layout Grid (Lista + Painel) */
-.rules-layout {
-    display: flex; gap: 24px; align-items: flex-start; position: relative;
+    box-shadow: 0 4px 6px -1px rgba(0, 123, 255, 0.2);
 }
 
-/* Lista de Regras */
-.rules-list-container {
-    flex: 1; min-width: 0; /* Previne overflow */
+.btn-primary:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
 }
 
-.rules-grid { display: flex; flex-direction: column; gap: 16px; }
+/* LAYOUT */
+.content-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
 
+.rules-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* GRID DE REGRAS - Adicionado gap para separar cards */
+.rules-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* CARD DA REGRA */
 .rule-card {
-    background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: all 0.2s;
-    position: relative; overflow: hidden;
-}
-.rule-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px rgba(0,0,0,0.05); }
-.rule-card.active { border-color: var(--color-primary); background: #f8fafc; }
-
-.rule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-
-.suggestion-badge {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: var(--color-primary); color: white; padding: 8px 16px; border-radius: 8px;
-    min-width: 80px; text-align: center;
-}
-.suggestion-badge .label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.9; }
-.suggestion-badge .size { font-size: 1.4rem; font-weight: 800; line-height: 1; }
-
-.priority-badge {
-    background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
-.actions { display: flex; gap: 8px; }
-.icon-btn {
-    width: 32px; height: 32px; border-radius: 6px; border: 1px solid transparent;
-    display: flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: #94a3b8; transition: all 0.2s;
-}
-.icon-btn.edit:hover { background: #eff6ff; color: var(--color-primary); }
-.icon-btn.delete:hover { background: #fef2f2; color: var(--color-error); }
-
-.rule-conditions { display: flex; flex-wrap: wrap; gap: 8px; }
-.condition-chip {
-    display: flex; align-items: center; gap: 6px;
-    background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; color: #334155;
-}
-.condition-chip .field { font-weight: 600; text-transform: capitalize; }
-.condition-chip .operator { color: #94a3b8; font-weight: 700; font-family: monospace; }
-.condition-chip .value { color: var(--color-primary); font-weight: 700; }
-
-/* Empty State */
-.empty-state {
-    text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px dashed #e2e8f0;
-}
-.icon-circle {
-    width: 64px; height: 64px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: #94a3b8;
-}
-.empty-state h3 { color: #1e293b; margin-bottom: 8px; }
-.empty-state p { color: #64748b; margin-bottom: 24px; }
-
-/* Editor Panel (Lateral) */
-.rule-editor-panel {
-    width: 380px; background: white; border: 1px solid #e2e8f0; border-radius: 12px;
-    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); position: sticky; top: 20px;
-    display: flex; flex-direction: column; overflow: hidden;
+.rule-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
 }
 
-.panel-header {
-    padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;
-    display: flex; justify-content: space-between; align-items: center;
+.rule-card.editing {
+    border: 2px solid var(--color-primary);
 }
-.panel-header h3 { font-size: 1.1rem; color: #1e293b; font-weight: 600; margin: 0; }
-.close-btn { background: none; border: none; cursor: pointer; color: #94a3b8; }
 
-.panel-body { padding: 20px; flex: 1; overflow-y: auto; max-height: calc(100vh - 180px); }
-
-.form-section { margin-bottom: 24px; }
-.form-section label { display: block; font-size: 0.85rem; font-weight: 700; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-
-.row-inputs { display: flex; gap: 12px; }
-.input-group { flex: 1; }
-.input-label { display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
-.input-lg {
-    width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-weight: 600; color: #1e293b; text-align: center;
+.card-content {
+    display: flex;
+    padding: 20px;
+    align-items: stretch;
 }
-.input-lg:focus { border-color: var(--color-primary); outline: none; }
 
-.separator { height: 1px; background: #e2e8f0; margin: 0 -20px 24px; }
-
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.btn-xs {
-    display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.75rem; background: #eff6ff; color: var(--color-primary); border: none; border-radius: 4px; cursor: pointer; font-weight: 600;
+.rule-conditions {
+    flex: 1;
 }
-.btn-xs:hover { background: #dbeafe; }
 
-.condition-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+.label-section {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
 }
-.cond-inputs {
-    flex: 1; display: flex; gap: 8px; background: #f8fafc; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0;
+
+.conditions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
-.cond-inputs select, .cond-inputs input {
-    background: transparent; border: none; font-size: 0.9rem; padding: 6px; outline: none; color: #334155;
+
+.condition-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #334155;
+    background: #f8fafc;
+    padding: 4px 8px;
+    border-radius: 6px;
+    width: fit-content;
 }
-.cond-inputs select { font-weight: 500; }
-.operator-select { width: 50px; text-align: center; font-family: monospace; font-weight: 700; color: #64748b; }
-.cond-inputs input { width: 70px; text-align: right; font-weight: 600; color: var(--color-primary); }
 
-.btn-remove {
-    background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 4px;
+.cond-field {
+    font-weight: 600;
+    text-transform: capitalize;
 }
-.btn-remove:hover { color: var(--color-error); }
-.btn-remove:disabled { opacity: 0; cursor: default; }
 
-.hint-text { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; font-style: italic; }
-
-.panel-footer {
-    padding: 16px 20px; border-top: 1px solid #e2e8f0; background: #f8fafc;
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+.cond-op {
+    color: #64748b;
+    font-weight: 500;
 }
-.btn-primary.full { flex: 1; justify-content: center; }
 
-/* Animações */
-.slide-fade-enter-active, .slide-fade-leave-active { transition: all 0.3s ease; }
-.slide-fade-enter-from, .slide-fade-leave-to { transform: translateX(20px); opacity: 0; }
+.cond-val {
+    color: var(--color-primary);
+    font-weight: 700;
+}
 
+.rule-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e1;
+    padding: 0 20px;
+}
+
+.rule-result {
+    width: 140px;
+    background: #f0f9ff;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border: 1px solid #e0f2fe;
+}
+
+.size-box {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.priority-tag {
+    font-size: 0.75rem;
+    color: #0369a1;
+    font-weight: 600;
+}
+
+/* CARD FOOTER (BOTÕES) */
+.card-footer {
+    border-top: 1px solid #f1f5f9;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background: #fcfcfc;
+}
+
+.btn-action {
+    background: transparent;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.btn-action.edit {
+    color: var(--color-primary);
+}
+
+.btn-action.edit:hover {
+    background: #eff6ff;
+}
+
+.btn-action.delete {
+    color: var(--color-error);
+}
+
+.btn-action.delete:hover {
+    background: #fef2f2;
+}
+
+/* SIDEBAR DE EDIÇÃO */
+.editor-sidebar {
+    width: 700px;
+    /* AUMENTADO: Largura maior para melhor conforto */
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 40px);
+}
+
+.sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #1e293b;
+}
+
+.close-icon {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+}
+
+.sidebar-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.highlight-section {
+    background: #f0f9ff;
+    border: 1px solid #e0f2fe;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+}
+
+.highlight-section label {
+    color: #0369a1;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+    font-size: 0.85rem;
+}
+
+.result-inputs {
+    display: flex;
+    gap: 12px;
+}
+
+.input-col {
+    flex: 1;
+}
+
+.sub-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.input-big {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    color: #0f172a;
+}
+
+.input-big:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+.section-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.section-top label {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.btn-small {
+    background: #f1f5f9;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* FORMULÁRIO (STACKED) */
+.conditions-list-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.condition-row-stacked {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.field-label-small {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.field-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    justify-content: flex-end;
+}
+
+/* SELECTS ESTILIZADOS - APARÊNCIA UNIFICADA */
+.field-wrapper select,
+.half-col select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #334155;
+    background-color: white;
+    font-weight: 600;
+
+    /* Remove a seta padrão e adiciona SVG customizado */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+}
+
+.field-wrapper select:focus,
+.half-col select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.row-bottom {
+    display: flex;
+    gap: 8px;
+}
+
+.half-col {
+    flex: 1;
+}
+
+.half-col input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: white;
+}
+
+.half-col input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.remove-btn {
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: #cbd5e1;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.remove-btn:hover {
+    color: var(--color-error);
+    border-color: #fca5a5;
+}
+
+.remove-btn:disabled {
+    opacity: 0;
+    cursor: default;
+}
+
+.hint-text {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 15px;
+    font-style: italic;
+}
+
+.sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    gap: 12px;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.full {
+    flex: 1;
+    justify-content: center;
+}
+
+.alert {
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alert.error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.alert.success {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.state-box {
+    padding: 40px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.icon-faded {
+    opacity: 0.3;
+    margin-bottom: 10px;
+}
+
+.btn-outline {
+    margin-top: 15px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.animate-up {
+    animation: fadeUp 0.4s ease-out forwards;
+    opacity: 0;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in-enter-active,
+.slide-in-leave-active {
+    transition: all 0.3s ease;
+}
+
+.slide-in-enter-from,
+.slide-in-leave-to {
+    transform: translateX(20px);
+    opacity: 0;
+}
+
+/* MEDIA QUERIES (Mobile e Tablet) */
 @media (max-width: 1024px) {
-    .rules-layout { flex-direction: column; }
-    .rule-editor-panel { width: 100%; position: fixed; bottom: 0; top: auto; left: 0; right: 0; border-radius: 16px 16px 0 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
-    .panel-body { max-height: 50vh; }
+    .content-layout {
+        flex-direction: column;
+    }
+
+    .editor-sidebar {
+        width: 100%;
+        position: fixed;
+        bottom: 0;
+        top: auto;
+        left: 0;
+        right: 0;
+        border-radius: 16px 16px 0 0;
+        z-index: 100;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar-content {
+        max-height: 60vh;
+    }
+}
+
+@media (max-width: 640px) {
+
+    /* Ajuste para inputs empilhados no mobile */
+    .row-bottom {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .half-col {
+        width: 100%;
+    }
+
+    .card-content {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .rule-arrow {
+        display: none;
+    }
+
+    /* Oculta seta lateral no mobile */
+    .rule-result {
+        width: 100%;
+        padding: 16px;
+    }
 }
 </style>
