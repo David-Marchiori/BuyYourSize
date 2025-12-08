@@ -1,4 +1,11 @@
 {
+  "name": "buy-by-size-api",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
     "axios": "^1.13.2",
@@ -8,5 +15,11 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "xml2js": "^0.6.2"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10"
   }
 }

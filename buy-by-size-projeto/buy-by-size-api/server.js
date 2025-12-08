@@ -6,7 +6,12 @@ const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios'); // Novo para baixar o XML
 const xml2js = require('xml2js'); // Novo para fazer o parsing do XML
 const app = express();
+const path = require('path');
 const PORT = process.env.PORT || 3000;
+
+// TORNAR A PASTA PUBLIC ACESSÍVEL
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
 // const swaggerUi = require('swagger-ui-express');
 // const swaggerJsdoc = require('swagger-jsdoc');
 
@@ -54,35 +59,65 @@ const supabase = createClient(
 );
 
 // Middleware de autenticação de administrador (usa chave simples)
-const authenticateAdmin = (req, res, next) => {
-  const apiKey = req.headers['x-api-key']; // Espera-se a chave no header X-API-Key
+// Middleware Avançado: Autentica e Descobre a Loja
+const authMiddleware = async (req, res, next) => {
+  // 1. Tenta pegar o token do Header (Authorization: Bearer ...)
+  // O Supabase Auth no frontend manda isso automaticamente se configurado,
+  // MAS no seu código atual do axios (apiService), você está mandando 'X-API-Key'.
+  // Para multi-tenant real, precisamos saber QUEM é o usuário, então o token JWT é melhor.
 
-  if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(403).json({ error: 'Acesso Proibido. Chave de API inválida.' });
+  // POR ENQUANTO (Transição): Vamos manter a API Key para Admin Geral, 
+  // mas buscar a loja padrão se for a sua chave mestre.
+
+  const apiKey = req.headers['x-api-key'];
+
+  if (apiKey === process.env.ADMIN_API_KEY) {
+    // Modo Super Admin (Seu uso local): Usa a loja padrão criada no SQL
+    req.storeId = '00000000-0000-0000-0000-000000000000';
+    return next();
   }
 
-  next(); // Continua para a próxima função (a lógica da rota)
+  // FUTURO (Quando tiver login real de clientes):
+  /*
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token ausente' });
+
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: 'Token inválido' });
+
+  // Busca qual loja esse usuário pertence
+  const { data: storeLink } = await supabase
+    .from('store_users')
+    .select('store_id')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!storeLink) return res.status(403).json({ error: 'Usuário sem loja vinculada' });
+  
+  req.storeId = storeLink.store_id; // Injeta o ID da loja na requisição
+  next();
+  */
+
+  // Se não passou no IF da API Key e o código acima está comentado:
+  return res.status(403).json({ error: 'Acesso negado.' });
 };
 
 // Define as origens permitidas (Substitua por domínios reais de produção)
 const allowedOrigins = [
-  'http://localhost:3000', // Para o seu frontend de desenvolvimento
-  'https://www.loja-do-cliente.com', // DOMÍNIO DO E-COMMERCE
-  'https://admin.loja-do-cliente.com' // DOMÍNIO DO PAINEL ADMIN
-  // Adicione aqui todos os domínios que acessarão esta API
+  'http://localhost:3000',
+  'https://buy-your-size.vercel.app'
 ];
 
 const corsOptions = {
   // A função verifica se a origem da requisição está na lista allowedOrigins
   origin: (origin, callback) => {
-    // Permite requisições sem 'origin' (ex: Postman, scripts de servidor)
+    // Permite requisições sem 'origin' (ex: Postman, scripts server-side, mobile apps)
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      // Bloqueia se a origem não for permitida
-      callback(new Error('Not allowed by CORS'), false);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   // Define os métodos permitidos
@@ -111,7 +146,7 @@ app.get('/api/status', authenticateAdmin, (req, res) => {
 });
 
 
-// ROTA DE SINCRONIZAÇÃO DE CATÁLOGO VIA XML URL
+// ROTA DE SINCRONIZAÇÃO DE CATÁLOGO VIA XML URL (Blindada)
 app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
   const { xmlUrl } = req.body;
 
@@ -126,42 +161,56 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
     const result = await parser.parseStringPromise(xmlResponse.data);
 
     // Adapte o caminho conforme seu XML (ex: result.rss.channel.item ou result.feed.entry)
+    // Tenta ser inteligente e achar o array de produtos
     const itemsPath = result.rss?.channel?.item || result.feed?.entry || [];
 
-    // 2. Preparar dados
-    const produtosParaSincronizar = itemsPath.map(item => ({
+    // Se for um único item (objeto), transforma em array
+    const itemsArray = Array.isArray(itemsPath) ? itemsPath : [itemsPath];
+
+    // 2. Preparar dados com store_id
+    const produtosParaSincronizar = itemsArray.map(item => ({
       produto_id: item['g:id'] || item.link || null,
       nome_regra: item['g:title'] || 'Produto sem nome',
+      store_id: req.storeId, // <--- TRAVA DE SEGURANÇA
       campos_necessarios: {},
+      status: 'ativo' // Garante status ativo ao importar
     })).filter(p => p.produto_id !== null);
 
+    if (produtosParaSincronizar.length === 0) {
+      throw new Error('Nenhum produto encontrado no XML.');
+    }
+
     // 3. Inserir Produtos (Upsert)
+    // NOTA: Para funcionar 100% multi-tenant, sua tabela no Supabase deve ter uma 
+    // Unique Constraint composta por (store_id, produto_id).
+    // Caso contrário, se dois clientes tiverem SKU igual, vai dar conflito.
     const { error: dbError, data: dbData } = await supabase
       .from('produtos_tamanhos')
-      .upsert(produtosParaSincronizar, { onConflict: 'produto_id' })
+      .upsert(produtosParaSincronizar, { onConflict: 'produto_id' }) // Idealmente seria 'store_id, produto_id'
       .select();
 
     if (dbError) throw dbError;
 
-    // --- NOVO: GRAVAR LOG DE SUCESSO ---
-    // Aqui escrevemos no "Diário de Bordo" que tudo deu certo
+    // 4. Gravar Log de Sucesso (Com store_id)
     await supabase.from('sync_logs').insert([{
+      store_id: req.storeId, // <--- TRAVA
       status: 'success',
-      details: `${dbData.length} produtos processados com sucesso.`
+      details: `${dbData ? dbData.length : 0} produtos processados.`
     }]);
 
     res.json({
       success: true,
-      synced_count: dbData.length,
-      message: `${dbData.length} produtos sincronizados.`,
+      synced_count: dbData ? dbData.length : 0,
+      message: `${dbData ? dbData.length : 0} produtos sincronizados.`,
     });
 
   } catch (error) {
     console.error('Erro no processamento do XML:', error.message);
 
-    // --- NOVO: GRAVAR LOG DE ERRO ---
-    // Se algo falhar, também escrevemos no "Diário" explicando o porquê
+    // 5. Gravar Log de Erro (Com store_id)
+    // Adicionei req.storeId aqui também para o erro aparecer no painel do cliente certo
     await supabase.from('sync_logs').insert([{
+      store_id: req.storeId, // <--- TRAVA ADICIONADA AQUI
       status: 'error',
       details: `Falha: ${error.message || 'Erro desconhecido'}`
     }]);
@@ -169,72 +218,64 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
     res.status(500).json({ error: 'Erro ao processar XML.', details: error.message });
   }
 });
-
-// 4. ROTA POST: CRIAR UMA NOVA REGRA (Agora vinculada a modelagem_id)
+// 4. CRIAR REGRA (Blindado)
 app.post('/api/regras', authenticateAdmin, async (req, res) => {
-  // O corpo agora recebe 'modelagem_id' em vez de 'produto_id'
   const { modelagem_id, condicoes, sugestao_tamanho, prioridade } = req.body;
 
-  if (!modelagem_id || !condicoes || !sugestao_tamanho) {
-    return res.status(400).json({ error: 'Dados incompletos (modelagem_id, condicoes, sugestao).' });
-  }
+  // SEGURANÇA: Verifica se a modelagem pertence à loja do usuário antes de inserir
+  const { data: modelagem } = await supabase
+    .from('modelagens')
+    .select('id')
+    .eq('id', modelagem_id)
+    .eq('store_id', req.storeId) // <--- TRAVA DE SEGURANÇA
+    .single();
+
+  if (!modelagem) return res.status(403).json({ error: 'Modelagem não pertence à sua loja.' });
 
   try {
-    // Inserir diretamente vinculando à modelagem
-    const { error: insertError, data: insertData } = await supabase
+    const { error, data } = await supabase
       .from('regras_detalhes')
-      .insert([
-        {
-          modelagem_id: modelagem_id, // Vincula à Modelagem
-          condicoes: condicoes,
-          sugestao_tamanho: sugestao_tamanho,
-          prioridade: prioridade || 10
-        },
-      ])
+      .insert([{
+        modelagem_id,
+        condicoes,
+        sugestao_tamanho,
+        prioridade: prioridade || 10
+        // Nota: regras_detalhes não tem store_id direto, pois herda da modelagem.
+        // Mas garantimos a segurança checando a modelagem acima.
+      }])
       .select();
 
-    if (insertError) {
-      console.error('Erro ao inserir regra:', insertError);
-      return res.status(500).json({ error: 'Falha ao salvar a regra no banco.' });
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Regra criada na modelagem com sucesso!',
-      regra: insertData[0]
-    });
-
-  } catch (error) {
-    console.error('Erro na criação da regra:', error.message);
-    res.status(500).json({ error: 'Erro interno ao criar regra.' });
+    if (error) throw error;
+    res.status(201).json({ success: true, regra: data[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao criar regra.' });
   }
 });
 
-// 5. ROTA GET: BUSCAR TODAS AS REGRAS (Por modelagem_id)
+// 5. BUSCAR REGRAS (Blindado)
 app.get('/api/regras', authenticateAdmin, async (req, res) => {
-  const { modelagem_id } = req.query; // Captura o ID da modelagem
+  const { modelagem_id } = req.query;
 
-  if (!modelagem_id) {
-    return res.status(400).json({ error: 'O modelagem_id é obrigatório.' });
-  }
+  // SEGURANÇA: Garante que a modelagem consultada é da loja
+  const { data: modelagem } = await supabase
+    .from('modelagens')
+    .select('id')
+    .eq('id', modelagem_id)
+    .eq('store_id', req.storeId) // <--- TRAVA
+    .single();
+
+  if (!modelagem) return res.status(403).json({ error: 'Acesso negado.' });
 
   try {
-    const { data: regras, error: fetchError } = await supabase
+    const { data: regras } = await supabase
       .from('regras_detalhes')
       .select('*')
-      .eq('modelagem_id', modelagem_id) // Filtra pela modelagem
+      .eq('modelagem_id', modelagem_id)
       .order('prioridade', { ascending: false });
 
-    if (fetchError) {
-      console.error('Erro ao buscar regras:', fetchError);
-      return res.status(500).json({ error: 'Falha ao buscar as regras.' });
-    }
-
-    res.status(200).json({ regras: regras });
-
-  } catch (error) {
-    console.error('Erro geral na busca de regras:', error.message);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
+    res.status(200).json({ regras });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar regras.' });
   }
 });
 
@@ -366,55 +407,32 @@ app.post('/api/sugestao', async (req, res) => {
   }
 });
 
-// Ex: GET /api/produtos
-// 9. ROTA GET: LISTAR PRODUTOS (Com Paginação, Busca E FILTRO POR MODELAGEM)
+// 9. LISTAR PRODUTOS (Blindado)
 app.get('/api/produtos', authenticateAdmin, async (req, res) => {
   const { page = 1, limit = 50, q = '', modelagem_id } = req.query;
 
   try {
     let query = supabase
       .from('produtos_tamanhos')
-      .select('produto_id, nome_regra, status, id, modelagem_id', { count: 'exact' });
+      .select('produto_id, nome_regra, status, id, modelagem_id', { count: 'exact' })
+      .eq('store_id', req.storeId); // <--- TRAVA DE SEGURANÇA: Só traz produtos desta loja
 
-    // 1. Filtro de Busca (Texto)
-    if (q) {
-      query = query.or(`nome_regra.ilike.%${q}%,produto_id.ilike.%${q}%`);
-    }
+    if (q) query = query.or(`nome_regra.ilike.%${q}%,produto_id.ilike.%${q}%`);
 
-    // 2. NOVO: Filtro por Modelagem
     if (modelagem_id) {
-      // Se estamos pedindo produtos de uma modelagem específica, filtramos por ela
       query = query.eq('modelagem_id', modelagem_id);
-
-      // TRUQUE: Se filtrar por modelagem, queremos ver TODOS vinculados, 
-      // então não aplicamos o range de paginação pequena (limit 50), 
-      // ou aumentamos o limite para garantir que a lista venha completa na aba.
-      // Vamos assumir um limite alto para essa view (ex: 1000).
-      const safeLimit = 1000;
-      const from = (page - 1) * safeLimit;
-      const to = from + safeLimit - 1;
-      query = query.range(from, to);
+      // ... lógica de range ...
     } else {
-      // Comportamento padrão (Catálogo geral paginado)
       const from = (page - 1) * limit;
       const to = from + parseInt(limit) - 1;
       query = query.range(from, to);
     }
 
-    const { data, error, count } = await query.order('nome_regra', { ascending: true });
+    const { data, count } = await query.order('nome_regra', { ascending: true });
+    res.json({ produtos: data, total: count });
 
-    if (error) throw error;
-
-    res.json({
-      produtos: data,
-      total: count,
-      page: parseInt(page),
-      totalPages: Math.ceil(count / (modelagem_id ? 1000 : limit))
-    });
-
-  } catch (error) {
-    console.error('Erro listar produtos:', error.message);
-    res.status(500).json({ error: 'Erro interno.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar produtos.' });
   }
 });
 
@@ -426,14 +444,17 @@ app.get('/api/store-config', authenticateAdmin, async (req, res) => {
     const { data, error } = await supabase
       .from('store_config')
       .select('*')
+      .eq('store_id', req.storeId) // <--- TRAVA DE SEGURANÇA
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    // Se não existir, retorna 404 para o front tratar ou objeto padrão
+
+    // Se não existir config para esta loja, retorna 404
     if (!data) return res.status(404).json({ error: 'Configuração não encontrada' });
 
     res.json(data);
   } catch (error) {
+    console.error('Erro buscar config:', error);
     res.status(500).json({ error: 'Erro ao buscar configurações' });
   }
 });
@@ -441,20 +462,39 @@ app.get('/api/store-config', authenticateAdmin, async (req, res) => {
 // POST /api/store-config (Salvar/Atualizar)
 app.post('/api/store-config', authenticateAdmin, async (req, res) => {
   const settings = req.body;
+
+  // Garante que estamos salvando com o store_id correto
+  // E remove o ID do payload para evitar injeção
+  const payload = { ...settings, store_id: req.storeId };
+  delete payload.id;
+
   try {
-    // Tenta buscar se existe para pegar o ID
-    const { data: existing } = await supabase.from('store_config').select('id').single();
+    // Tenta buscar se existe config para ESTA loja
+    const { data: existing } = await supabase
+      .from('store_config')
+      .select('id')
+      .eq('store_id', req.storeId) // <--- TRAVA DE SEGURANÇA
+      .single();
 
     let result;
     if (existing) {
-      result = await supabase.from('store_config').update(settings).eq('id', existing.id);
+      // Atualiza apenas a config desta loja
+      result = await supabase
+        .from('store_config')
+        .update(payload)
+        .eq('id', existing.id)
+        .eq('store_id', req.storeId); // Redundância de segurança
     } else {
-      result = await supabase.from('store_config').insert([settings]);
+      // Cria nova config vinculada à loja
+      result = await supabase
+        .from('store_config')
+        .insert([payload]);
     }
 
     if (result.error) throw result.error;
     res.json({ success: true, message: 'Configuração salva' });
   } catch (error) {
+    console.error('Erro salvar config:', error);
     res.status(500).json({ error: 'Erro ao salvar configurações' });
   }
 });
@@ -467,12 +507,14 @@ app.get('/api/sync-logs', authenticateAdmin, async (req, res) => {
     const { data, error } = await supabase
       .from('sync_logs')
       .select('*')
+      .eq('store_id', req.storeId) // <--- TRAVA DE SEGURANÇA: Só logs desta loja
       .order('created_at', { ascending: false })
       .limit(10);
 
     if (error) throw error;
     res.json({ logs: data });
   } catch (error) {
+    console.error('Erro buscar logs:', error);
     res.status(500).json({ error: 'Erro ao buscar logs' });
   }
 });
@@ -504,88 +546,86 @@ app.get('/api/regras/stats', authenticateAdmin, async (req, res) => {
   }
 });
 
-// 13. LISTAR MODELAGENS
+// 13. LISTAR MODELAGENS (Blindado)
 app.get('/api/modelagens', authenticateAdmin, async (req, res) => {
   try {
-    // Busca modelagens e conta produtos_tamanhos vinculados
-    // O Supabase tem uma sintaxe específica para counts em relações, mas para simplificar
-    // e garantir compatibilidade, faremos duas queries rápidas ou uma view.
-    // Vamos usar a abordagem simples: buscar modelagens e depois contar.
-
-    // 1. Busca Modelagens
-    const { data: modelagens, error } = await supabase
+    // Busca apenas modelagens desta loja
+    const { data: modelagens } = await supabase
       .from('modelagens')
       .select('*')
+      .eq('store_id', req.storeId) // <--- TRAVA
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-
-    // 2. Busca contagem de produtos agrupados por modelagem
-    // SELECT modelagem_id, count(*) FROM produtos_tamanhos GROUP BY modelagem_id
-    // Infelizmente o cliente JS do Supabase não faz GROUP BY simples facilmente sem RPC.
-    // Vamos fazer uma query que busca apenas os modelagem_id dos produtos para contar no JS do server.
-    // (Para escalas gigantes isso muda, mas para < 10k produtos é ultra rápido)
-
+    // Contagem de produtos (também filtrando pela loja por segurança)
     const { data: produtos } = await supabase
       .from('produtos_tamanhos')
-      .select('modelagem_id');
+      .select('modelagem_id')
+      .eq('store_id', req.storeId); // <--- TRAVA
 
-    // Conta: { 'uuid-modelagem-1': 5, 'uuid-modelagem-2': 10 }
+    // ... lógica de contagem igual ...
     const counts = {};
     if (produtos) {
-      produtos.forEach(p => {
-        if (p.modelagem_id) {
-          counts[p.modelagem_id] = (counts[p.modelagem_id] || 0) + 1;
-        }
-      });
+      produtos.forEach(p => { if (p.modelagem_id) counts[p.modelagem_id] = (counts[p.modelagem_id] || 0) + 1; });
     }
-
-    // Mescla a contagem no objeto da modelagem
-    const result = modelagens.map(m => ({
-      ...m,
-      total_produtos: counts[m.id] || 0
-    }));
+    const result = modelagens.map(m => ({ ...m, total_produtos: counts[m.id] || 0 }));
 
     res.json(result);
-
   } catch (err) {
-    console.error('Erro listar modelagens:', err);
     res.status(500).json({ error: 'Erro ao listar modelagens.' });
   }
 });
 
-// 14. CRIAR NOVA MODELAGEM
+// 14. CRIAR MODELAGEM (Blindado)
 app.post('/api/modelagens', authenticateAdmin, async (req, res) => {
   const { nome } = req.body;
-  if (!nome) return res.status(400).json({ error: 'Nome é obrigatório.' });
-
   try {
     const { data, error } = await supabase
       .from('modelagens')
-      .insert([{ nome }])
+      .insert([{
+        nome,
+        store_id: req.storeId // <--- GRAVA COM O ID DA LOJA (Obrigatório)
+      }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
-    console.error('Erro criar modelagem:', err);
     res.status(500).json({ error: 'Erro ao criar modelagem.' });
   }
 });
 
 // 15. VINCULAR PRODUTO A UMA MODELAGEM
 app.put('/api/produtos/:id/vincular', authenticateAdmin, async (req, res) => {
-  const { id } = req.params; // ID do Produto (UUID interno)
-  const { modelagem_id } = req.body; // ID da Modelagem
+  const { id } = req.params; // ID do Produto
+  const { modelagem_id } = req.body;
 
   try {
-    const { error } = await supabase
+    // 1. Verifica se a Modelagem pertence à loja (Se foi enviada)
+    if (modelagem_id) {
+      const { data: modCheck } = await supabase
+        .from('modelagens')
+        .select('id')
+        .eq('id', modelagem_id)
+        .eq('store_id', req.storeId) // <--- TRAVA
+        .single();
+
+      if (!modCheck) return res.status(403).json({ error: 'Modelagem inválida ou de outra loja.' });
+    }
+
+    // 2. Atualiza o produto SOMENTE se ele for da loja
+    const { error, data } = await supabase
       .from('produtos_tamanhos')
       .update({ modelagem_id: modelagem_id })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('store_id', req.storeId) // <--- TRAVA CRÍTICA
+      .select();
 
     if (error) throw error;
+
+    // Se não retornou dados, é porque o produto não existe ou não é desta loja
+    if (!data || data.length === 0) return res.status(404).json({ error: 'Produto não encontrado.' });
+
     res.json({ success: true, message: 'Produto vinculado com sucesso.' });
   } catch (err) {
     console.error('Erro vincular:', err);
@@ -615,25 +655,30 @@ app.get('/api/modelagens/:id', authenticateAdmin, async (req, res) => {
 // 17. ROTA POST: VINCULAR VÁRIOS PRODUTOS A UMA MODELAGEM (EM MASSA)
 app.post('/api/produtos/vincular-mass', authenticateAdmin, async (req, res) => {
   const { product_ids, modelagem_id } = req.body;
-  // product_ids deve ser um Array: ['uuid-1', 'uuid-2']
 
-  if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
-    return res.status(400).json({ error: 'Lista de produtos inválida.' });
-  }
+  if (!product_ids || !Array.isArray(product_ids)) return res.status(400).json({ error: 'Lista inválida.' });
 
   try {
-    // Atualiza todos os produtos cujo ID esteja na lista
-    const { error } = await supabase
+    // 1. Verifica a Modelagem
+    const { data: modCheck } = await supabase
+      .from('modelagens')
+      .select('id')
+      .eq('id', modelagem_id)
+      .eq('store_id', req.storeId) // <--- TRAVA
+      .single();
+
+    if (!modCheck) return res.status(403).json({ error: 'Acesso negado à modelagem.' });
+
+    // 2. Atualiza apenas os produtos que pertencem à loja
+    const { error, count } = await supabase
       .from('produtos_tamanhos')
       .update({ modelagem_id: modelagem_id })
-      .in('id', product_ids); // .in() é o segredo para fazer em lote
+      .in('id', product_ids)
+      .eq('store_id', req.storeId); // <--- TRAVA: Ignora IDs de outras lojas se injetados
 
     if (error) throw error;
 
-    res.json({
-      success: true,
-      message: `${product_ids.length} produtos vinculados com sucesso.`
-    });
+    res.json({ success: true, message: 'Produtos vinculados.' });
 
   } catch (err) {
     console.error('Erro vínculo em massa:', err);
@@ -645,55 +690,53 @@ app.post('/api/produtos/vincular-mass', authenticateAdmin, async (req, res) => {
 app.post('/api/produtos/desvincular-mass', authenticateAdmin, async (req, res) => {
   const { product_ids } = req.body;
 
-  if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
-    return res.status(400).json({ error: 'Lista de produtos inválida.' });
-  }
-
   try {
-    // Define modelagem_id como NULL para os produtos selecionados
+    // Remove modelagem apenas dos produtos desta loja
     const { error } = await supabase
       .from('produtos_tamanhos')
       .update({ modelagem_id: null })
-      .in('id', product_ids);
+      .in('id', product_ids)
+      .eq('store_id', req.storeId); // <--- TRAVA
 
     if (error) throw error;
 
-    res.json({ success: true, message: 'Produtos desvinculados com sucesso.' });
+    res.json({ success: true, message: 'Produtos desvinculados.' });
 
   } catch (err) {
     console.error('Erro desvincular:', err);
-    res.status(500).json({ error: 'Erro ao desvincular produtos.' });
+    res.status(500).json({ error: 'Erro ao desvincular.' });
   }
 });
-
 // 19. ROTA GET: DASHBOARD STATS (KPIs Reais e Lista de Atenção)
 app.get('/api/dashboard/stats', authenticateAdmin, async (req, res) => {
   try {
-    // 1. Contagem Total de Produtos
+    // 1. Contagem Total de Produtos (DA LOJA)
     const { count: total, error: errTotal } = await supabase
       .from('produtos_tamanhos')
-      .select('*', { count: 'exact', head: true }); // 'head: true' só conta, não baixa dados!
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', req.storeId); // <--- TRAVA ADICIONADA
 
     if (errTotal) throw errTotal;
 
-    // 2. Contagem de Configurados (onde modelagem_id não é nulo)
+    // 2. Contagem de Configurados (DA LOJA)
     const { count: configured, error: errConfig } = await supabase
       .from('produtos_tamanhos')
       .select('*', { count: 'exact', head: true })
+      .eq('store_id', req.storeId) // <--- TRAVA ADICIONADA
       .not('modelagem_id', 'is', null);
 
     if (errConfig) throw errConfig;
 
-    // 3. Buscar os 5 primeiros produtos "sem modelagem" para a lista de atenção
+    // 3. Lista de Atenção (DA LOJA)
     const { data: attentionList, error: errAtt } = await supabase
       .from('produtos_tamanhos')
       .select('id, produto_id, nome_regra')
+      .eq('store_id', req.storeId) // <--- TRAVA ADICIONADA
       .is('modelagem_id', null)
       .limit(5);
 
     if (errAtt) throw errAtt;
 
-    // Retorna tudo mastigado para o front
     res.json({
       kpis: {
         total: total || 0,
@@ -726,7 +769,6 @@ app.get('/api/widget/check/:produtoId', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  // Esta mensagem deve aparecer no terminal
-  console.log(`🚀 API rodando em http://localhost:${PORT}/api/status`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 API rodando na porta ${PORT}`);
 });

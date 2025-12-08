@@ -1,14 +1,22 @@
 <script setup>
-import { ref } from 'vue';
-import { RouterLink, RouterView, useRoute } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router'; // Importar useRouter
+import { supabase } from '@/supabase'; // Importar Supabase
 import { 
   Search, Bell, User, LogOut, Store, Settings, 
   Home, Shirt, Ruler, BarChart2, Link as LinkIcon, 
   Menu, X, ChevronRight, Layers
 } from 'lucide-vue-next';
 
-const route = useRoute();
+const router = useRouter(); // Instanciar router
 const isMobileMenuOpen = ref(false);
+
+// Estado do Usuário
+const userProfile = ref({
+    name: 'Carregando...',
+    email: '...',
+    initials: '...'
+});
 
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
@@ -17,6 +25,36 @@ const toggleMobileMenu = () => {
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
 };
+
+// Função de Logout
+const handleLogout = async () => {
+    try {
+        await supabase.auth.signOut();
+        router.replace({ name: 'login' }); // Redireciona e limpa histórico
+    } catch (error) {
+        console.error('Erro ao sair:', error);
+    }
+};
+
+// Carregar Dados do Usuário
+const loadUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+        // Tenta pegar nome do metadata ou usa parte do email
+        const name = user.user_metadata?.full_name || user.email.split('@')[0];
+        const email = user.email;
+        const initials = name.substring(0, 2).toUpperCase();
+
+        userProfile.value = {
+            name: name,
+            email: email,
+            initials: initials
+        };
+    }
+};
+
+onMounted(loadUserProfile);
 </script>
 
 <template>
@@ -50,24 +88,23 @@ const closeMobileMenu = () => {
       <div class="topbar-right">
         <button class="icon-btn" title="Notificações">
           <Bell :size="20" />
-          <span class="notification-pulse"></span>
-        </button>
+          </button>
         
         <div class="profile-menu-container">
           <button class="profile-btn">
-            <span>DM</span> 
+            <span>{{ userProfile.initials }}</span> 
           </button>
           
           <div class="profile-dropdown">
             <div class="dropdown-header">
-              <p class="profile-name">David Marchiori</p>
-              <span class="profile-email">david@exemplo.com</span>
+              <p class="profile-name">{{ userProfile.name }}</p>
+              <span class="profile-email">{{ userProfile.email }}</span>
             </div>
             <div class="dropdown-body">
-              <RouterLink to="/profile" class="dropdown-item"><User :size="16" /> Meu Perfil</RouterLink>
-              <RouterLink to="/stores" class="dropdown-item"><Store :size="16" /> Minhas Lojas</RouterLink>
+              <button class="dropdown-item" title="Em breve"><User :size="16" /> Meu Perfil</button>
+              <button class="dropdown-item" title="Em breve"><Store :size="16" /> Minhas Lojas</button>
               <div class="separator"></div>
-              <button class="dropdown-item logout" @click="$router.push('/login')">
+              <button class="dropdown-item logout" @click="handleLogout">
                 <LogOut :size="16" /> Sair
               </button>
             </div>
@@ -94,10 +131,6 @@ const closeMobileMenu = () => {
           <RouterLink to="/catalog" class="nav-item" @click="closeMobileMenu">
             <Shirt :size="20" /> <span class="nav-text">Produtos</span>
           </RouterLink>
-          <RouterLink to="/catalog-attention" class="nav-item" @click="closeMobileMenu">
-              <span class="dot-warning"></span> <span class="nav-text">Atenção Necessária</span>
-          </RouterLink>
-
           <span class="menu-label">Tabelas de Medidas</span>
           <RouterLink to="/modelings" class="nav-item" @click="closeMobileMenu">
             <Ruler :size="20" /> <span class="nav-text">Modelagens</span>
@@ -112,18 +145,13 @@ const closeMobileMenu = () => {
           <RouterLink to="/integrations/feed" class="nav-item" @click="closeMobileMenu">
             <LinkIcon :size="20" /> <span class="nav-text">Integrações XML</span>
           </RouterLink>
-          <RouterLink to="/settings/store" class="nav-item" @click="closeMobileMenu">
-            <Settings :size="20" /> <span class="nav-text">Configurações</span>
-          </RouterLink>
-
           <div class="sidebar-footer">
-            <RouterLink to="/billing/subscription" class="plan-card">
+            <div class="plan-card">
               <div class="plan-info">
                 <span class="plan-name">Plano Pro</span>
                 <span class="plan-status">Ativo</span>
               </div>
-              <ChevronRight :size="16" class="plan-arrow" />
-            </RouterLink>
+              </div>
           </div>
 
         </nav>
@@ -141,7 +169,7 @@ const closeMobileMenu = () => {
 </template>
 
 <style scoped>
-/* CSS Mantido idêntico ao original, pois a estrutura não mudou, apenas os links */
+/* CSS Mantido idêntico ao original, pois a estrutura não mudou */
 :root { --sidebar-width: 260px; --topbar-height: 64px; --transition-speed: 0.3s; }
 .main-container { display: flex; flex-direction: column; min-height: 100vh; background-color: #f8fafc; }
 .topbar { height: var(--topbar-height); background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(226, 232, 240, 0.8); display: flex; justify-content: space-between; align-items: center; padding: 0 24px; position: sticky; top: 0; z-index: 50; transition: all var(--transition-speed); }
