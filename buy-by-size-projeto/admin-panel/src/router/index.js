@@ -8,6 +8,7 @@ import CreateRuleView from '@/rules/CreateRuleView.vue'
 import MyRulesListView from '@/rules/MyRulesListView.vue'
 import MainLayout from '@/components/MainLayout.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
+import ModelingsView from '@/views/ModelingsView.vue';
 import Feed from '@/integrations/Feed.vue';
 
 const router = createRouter({
@@ -49,6 +50,18 @@ const router = createRouter({
           path: 'rules/list',
           name: 'MyRulesList',
           component: MyRulesListView
+        },
+        {
+          path: 'modelings',
+          name: 'Modelings',
+          component: ModelingsView
+        },
+        // Vamos criar esta rota em breve para substituir a antiga de regras de produto
+        {
+          path: 'modelings/:id/rules',
+          name: 'modeling-rules',
+          component: () => import('@/views/RulesView.vue'), // Reutilizaremos o RulesView
+          props: true
         },
         { path: 'recommendations/how-it-works', component: PlaceholderView },
         { path: 'recommendations/logs', component: PlaceholderView },

@@ -20,12 +20,19 @@ const apiClient = axios.create({
 /**
  * GET /api/produtos
  */
-export const getCatalogProducts = async () => {
+export const getCatalogProducts = async (page = 1, search = '') => {
   try {
-    const response = await apiClient.get('/produtos');
-    return response.data.produtos;
+    // Passa os parâmetros na URL (ex: /produtos?page=1&limit=50&q=camiseta)
+    const response = await apiClient.get('/produtos', {
+      params: {
+        page: page,
+        limit: 50,
+        q: search
+      }
+    });
+    return response.data; // Agora retorna { produtos: [], total: 100, ... }
   } catch (error) {
-    console.error('Erro ao buscar catálogo:', error.response || error);
+    console.error('Erro ao buscar catálogo:', error);
     throw error;
   }
 };
@@ -162,6 +169,116 @@ export const getConfiguredRuleStats = async () => {
     console.error('Erro ao buscar estatísticas de regras:', error);
     // Retorna objeto vazio em caso de erro para não quebrar a tela
     return {};
+  }
+};
+
+// Lista todas as modelagens cadastradas
+export const getModelings = async () => {
+  try {
+    const response = await apiClient.get('/modelagens');
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar modelagens:', error);
+    throw error;
+  }
+};
+
+// Busca detalhes de uma modelagem específica (pelo ID)
+// CORRIGIDO: Agora chama a API, não o Supabase direto
+export const getModelingDetails = async (id) => {
+  try {
+    const response = await apiClient.get(`/modelagens/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar detalhes da modelagem:', error);
+    throw error;
+  }
+};
+
+// Cria uma nova modelagem
+export const createModeling = async (nome) => {
+  try {
+    const response = await apiClient.post('/modelagens', { nome });
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao criar modelagem:', error);
+    throw error;
+  }
+};
+
+// Vincula um produto a uma modelagem
+export const linkProductToModeling = async (productId, modelingId) => {
+  try {
+    const response = await apiClient.put(`/produtos/${productId}/vincular`, {
+      modelagem_id: modelingId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao vincular produto:', error);
+    throw error;
+  }
+};
+
+// Busca regras de uma MODELAGEM específica
+export const getModelingRules = async (modelingId) => {
+  try {
+    const response = await apiClient.get('/regras', {
+      params: { modelagem_id: modelingId }
+    });
+    return response.data.regras;
+  } catch (error) {
+    console.error('Erro ao buscar regras da modelagem:', error);
+    throw error;
+  }
+};
+
+// Vincula múltiplos produtos a uma modelagem de uma vez
+export const linkProductsBatch = async (productIds, modelingId) => {
+  try {
+    const response = await apiClient.post('/produtos/vincular-mass', {
+      product_ids: productIds,
+      modelagem_id: modelingId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Erro no vínculo em massa:', error);
+    throw error;
+  }
+};
+
+// Desvincula múltiplos produtos (remove a modelagem deles)
+export const unlinkProductsBatch = async (productIds) => {
+  try {
+    const response = await apiClient.post('/produtos/desvincular-mass', {
+      product_ids: productIds
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao desvincular produtos:', error);
+    throw error;
+  }
+};
+
+export const getDashboardStats = async () => {
+  try {
+    const response = await apiClient.get('/dashboard/stats');
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar stats do dashboard:', error);
+    throw error;
+  }
+};
+
+export const getProductsByModeling = async (modelingId) => {
+  try {
+    // Chama a rota de produtos filtrando pelo ID da modelagem
+    const response = await apiClient.get('/produtos', {
+      params: { modelagem_id: modelingId }
+    });
+    return response.data.produtos; // Retorna a lista direta
+  } catch (error) {
+    console.error('Erro ao buscar produtos da modelagem:', error);
+    throw error;
   }
 };
 

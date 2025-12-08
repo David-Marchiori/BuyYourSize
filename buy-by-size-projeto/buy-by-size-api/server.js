@@ -170,101 +170,66 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
   }
 });
 
-// 4. ROTA POST: CRIAR UMA NOVA REGRA DE TAMANHO
+// 4. ROTA POST: CRIAR UMA NOVA REGRA (Agora vinculada a modelagem_id)
 app.post('/api/regras', authenticateAdmin, async (req, res) => {
-  // O corpo da requisição deve vir do Painel Admin e conter:
-  // { produto_id: 'SKU-1001', condicoes: [{}...], sugestao_tamanho: 'P', prioridade: 1 }
-  const { produto_id, condicoes, sugestao_tamanho, prioridade } = req.body;
+  // O corpo agora recebe 'modelagem_id' em vez de 'produto_id'
+  const { modelagem_id, condicoes, sugestao_tamanho, prioridade } = req.body;
 
-  if (!produto_id || !condicoes || !sugestao_tamanho) {
-    return res.status(400).json({ error: 'Dados incompletos para a regra.' });
+  if (!modelagem_id || !condicoes || !sugestao_tamanho) {
+    return res.status(400).json({ error: 'Dados incompletos (modelagem_id, condicoes, sugestao).' });
   }
 
   try {
-    // 1. Encontrar o ID da Regra Mestre (na tabela produtos_tamanhos)
-    // Usamos o produto_id (do XML) para encontrar o ID da linha mestra.
-    const { data: produtoData, error: findError } = await supabase
-      .from('produtos_tamanhos')
-      .select('id')
-      .eq('produto_id', produto_id)
-      .single();
-
-    if (findError || !produtoData) {
-      return res.status(404).json({ error: 'Produto não encontrado para criar a regra.' });
-    }
-
-    const regra_mestre_id = produtoData.id;
-
-    // 2. Inserir os Detalhes da Regra na tabela regras_detalhes
+    // Inserir diretamente vinculando à modelagem
     const { error: insertError, data: insertData } = await supabase
       .from('regras_detalhes')
       .insert([
         {
-          regra_mestre_id: regra_mestre_id,
+          modelagem_id: modelagem_id, // Vincula à Modelagem
           condicoes: condicoes,
           sugestao_tamanho: sugestao_tamanho,
-          prioridade: prioridade || 0
+          prioridade: prioridade || 10
         },
       ])
       .select();
 
     if (insertError) {
       console.error('Erro ao inserir regra:', insertError);
-      return res.status(500).json({ error: 'Falha ao salvar a regra no banco de dados.' });
+      return res.status(500).json({ error: 'Falha ao salvar a regra no banco.' });
     }
 
     res.status(201).json({
       success: true,
-      message: 'Regra de tamanho criada com sucesso!',
+      message: 'Regra criada na modelagem com sucesso!',
       regra: insertData[0]
     });
 
   } catch (error) {
     console.error('Erro na criação da regra:', error.message);
-    res.status(500).json({ error: 'Erro interno ao processar a criação da regra.' });
+    res.status(500).json({ error: 'Erro interno ao criar regra.' });
   }
 });
 
-// 5. ROTA GET: BUSCAR TODAS AS REGRAS PARA UM PRODUTO
-// Ex: GET /api/regras?produto_id=SKU-1001
+// 5. ROTA GET: BUSCAR TODAS AS REGRAS (Por modelagem_id)
 app.get('/api/regras', authenticateAdmin, async (req, res) => {
-  const { produto_id } = req.query; // Captura o produto_id da query string
+  const { modelagem_id } = req.query; // Captura o ID da modelagem
 
-  if (!produto_id) {
-    return res.status(400).json({ error: 'O produto_id é obrigatório para buscar as regras.' });
+  if (!modelagem_id) {
+    return res.status(400).json({ error: 'O modelagem_id é obrigatório.' });
   }
 
   try {
-    // 1. Encontrar o ID da Regra Mestre (na tabela produtos_tamanhos)
-    const { data: produtoData, error: findError } = await supabase
-      .from('produtos_tamanhos')
-      .select('id')
-      .eq('produto_id', produto_id)
-      .single();
-
-    if (findError || !produtoData) {
-      // Retorna uma lista vazia se o produto não estiver no catálogo, mas evita erro 500.
-      if (findError.code === 'PGRST116') { // PGRST116 é o código para "no rows found"
-        return res.status(200).json({ regras: [] });
-      }
-      return res.status(404).json({ error: 'Produto não encontrado.' });
-    }
-
-    const regra_mestre_id = produtoData.id;
-
-    // 2. Buscar todos os detalhes da regra (condições) na tabela regras_detalhes
     const { data: regras, error: fetchError } = await supabase
       .from('regras_detalhes')
-      .select('*') // Seleciona todas as colunas
-      .eq('regra_mestre_id', regra_mestre_id)
-      .order('prioridade', { ascending: false }); // Ordena por prioridade
+      .select('*')
+      .eq('modelagem_id', modelagem_id) // Filtra pela modelagem
+      .order('prioridade', { ascending: false });
 
     if (fetchError) {
       console.error('Erro ao buscar regras:', fetchError);
-      return res.status(500).json({ error: 'Falha ao buscar as regras no banco de dados.' });
+      return res.status(500).json({ error: 'Falha ao buscar as regras.' });
     }
 
-    // 3. Retorna a lista de regras
     res.status(200).json({ regras: regras });
 
   } catch (error) {
@@ -273,10 +238,9 @@ app.get('/api/regras', authenticateAdmin, async (req, res) => {
   }
 });
 
-// 6. ROTA PUT: ATUALIZAR UMA REGRA EXISTENTE
-// Ex: PUT /api/regras/ID_DA_REGRA (onde ID_DA_REGRA é o 'id' da regras_detalhes)
+// 6. ROTA PUT: ATUALIZAR REGRA (Mantém igual, pois atualiza pelo ID da regra)
 app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params; // ID da regra (UUID) vindo da URL
+  const { id } = req.params;
   const { condicoes, sugestao_tamanho, prioridade } = req.body;
 
   try {
@@ -285,67 +249,35 @@ app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
     if (sugestao_tamanho) updatePayload.sugestao_tamanho = sugestao_tamanho;
     if (prioridade !== undefined) updatePayload.prioridade = prioridade;
 
-    if (Object.keys(updatePayload).length === 0) {
-      return res.status(400).json({ error: 'Nenhum campo para atualização fornecido.' });
-    }
-
     const { error: updateError, data: updateData } = await supabase
       .from('regras_detalhes')
       .update(updatePayload)
       .eq('id', id)
       .select();
 
-    if (updateError) {
-      console.error('Erro ao atualizar regra:', updateError);
-      return res.status(500).json({ error: 'Falha ao atualizar a regra.' });
-    }
-
-    // Confirma se alguma linha foi realmente atualizada
-    if (updateData.length === 0) {
-      return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
-    }
+    if (updateError) throw updateError;
 
     res.status(200).json({
       success: true,
-      message: 'Regra atualizada com sucesso!',
+      message: 'Regra atualizada!',
       regra: updateData[0]
     });
 
   } catch (error) {
-    console.error('Erro na atualização da regra:', error.message);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
+    console.error('Erro atualização regra:', error.message);
+    res.status(500).json({ error: 'Erro interno.' });
   }
 });
 
-// 7. ROTA DELETE: EXCLUIR UMA REGRA
+// 7. ROTA DELETE (Mantém igual)
 app.delete('/api/regras/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params; // ID da regra (UUID) vindo da URL
-
+  const { id } = req.params;
   try {
-    const { error, count } = await supabase
-      .from('regras_detalhes')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Erro ao excluir regra:', error);
-      return res.status(500).json({ error: 'Falha ao excluir a regra do banco de dados.' });
-    }
-
-    // Verifica se a exclusão realmente ocorreu
-    if (count === 0) {
-      return res.status(404).json({ error: 'Regra não encontrada com o ID fornecido.' });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Regra excluída com sucesso!',
-      deleted_id: id
-    });
-
+    const { error } = await supabase.from('regras_detalhes').delete().eq('id', id);
+    if (error) throw error;
+    res.status(200).json({ success: true, message: 'Regra excluída!', deleted_id: id });
   } catch (error) {
-    console.error('Erro na exclusão da regra:', error.message);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
+    res.status(500).json({ error: 'Erro ao excluir regra.' });
   }
 });
 
@@ -365,116 +297,124 @@ const evaluateCondition = (medidaCliente, operador, valorRegra) => {
 
 // 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO
 app.post('/api/sugestao', async (req, res) => {
-  // Dados esperados: produto_id e as medidas do cliente (ex: altura, peso)
-  const { produto_id, medidas } = req.body;
+  const { produto_id, medidas } = req.body; // produto_id aqui é o SKU (ex: SKU-1001)
 
   if (!produto_id || !medidas) {
-    return res.status(400).json({ error: 'Produto ID e medidas do cliente são obrigatórios.' });
+    return res.status(400).json({ error: 'Dados incompletos.' });
   }
 
   try {
-    // 1. Encontrar o ID da Regra Mestre
-    const { data: produtoData, error: findError } = await supabase
+    // 1. Buscar o Produto para descobrir qual é a MODELAGEM dele
+    const { data: produto, error: prodError } = await supabase
       .from('produtos_tamanhos')
-      .select('id')
+      .select('modelagem_id') // <--- Agora buscamos a modelagem!
       .eq('produto_id', produto_id)
       .single();
 
-    if (findError || !produtoData) {
-      return res.status(404).json({ error: 'Produto não encontrado para cálculo de sugestão.' });
+    if (prodError || !produto) {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
     }
 
-    const regra_mestre_id = produtoData.id;
-
-    // 2. Buscar todas as regras de sugestão para este produto
-    const { data: regras, error: fetchError } = await supabase
-      .from('regras_detalhes')
-      .select('*')
-      .eq('regra_mestre_id', regra_mestre_id)
-      .order('prioridade', { ascending: false }); // Prioriza regras mais importantes
-
-    if (fetchError || regras.length === 0) {
+    if (!produto.modelagem_id) {
       return res.status(200).json({
         sugestao: null,
-        message: 'Nenhuma regra de tamanho cadastrada para este produto.'
+        message: 'Este produto ainda não possui uma tabela de medidas vinculada.'
       });
     }
 
-    // 3. Iterar e Avaliar as Regras
+    // 2. Buscar regras vinculadas àquela MODELAGEM (não mais ao produto direto)
+    // Note que na tabela regras_detalhes, agora filtramos por 'modelagem_id'
+    // (Você precisará garantir que suas regras no banco tenham essa coluna preenchida)
+    const { data: regras, error: regrasError } = await supabase
+      .from('regras_detalhes')
+      .select('*')
+      .eq('modelagem_id', produto.modelagem_id) // <--- Mudança aqui
+      .order('prioridade', { ascending: false });
+
+    if (regrasError || !regras || regras.length === 0) {
+      return res.status(200).json({ sugestao: null, message: 'Sem regras configuradas para esta modelagem.' });
+    }
+
+    // 3. Lógica de Avaliação (Mantém a mesma função evaluateCondition que já existe)
     let sugestaoEncontrada = null;
-
     for (const regra of regras) {
-      let todasCondicoesVerdadeiras = true;
-
-      // Itera sobre as condições da regra (ex: [{"campo": "altura", ...}, {"campo": "peso", ...}])
+      let todasVerdadeiras = true;
       for (const condicao of regra.condicoes) {
         const medidaCliente = medidas[condicao.campo];
-        const valorRegra = condicao.valor;
-
-        // 3a. Verifica se o cliente forneceu a medida que a regra exige
         if (medidaCliente === undefined || medidaCliente === null) {
-          todasCondicoesVerdadeiras = false;
-          break; // Sai do loop de condições, pois falta dado
+          todasVerdadeiras = false; break;
         }
-
-        // 3b. Executa a comparação (ex: Altura do cliente > 1.75)
-        const resultado = evaluateCondition(
-          parseFloat(medidaCliente),
-          condicao.operador,
-          parseFloat(valorRegra)
-        );
-
-        if (!resultado) {
-          todasCondicoesVerdadeiras = false;
-          break; // Sai do loop de condições, pois uma falhou
+        if (!evaluateCondition(parseFloat(medidaCliente), condicao.operador, parseFloat(condicao.valor))) {
+          todasVerdadeiras = false; break;
         }
       }
-
-      // 3c. Se todas as condições da regra forem verdadeiras, encontramos a sugestão!
-      if (todasCondicoesVerdadeiras) {
+      if (todasVerdadeiras) {
         sugestaoEncontrada = regra.sugestao_tamanho;
-        break; // Encontramos a regra de maior prioridade válida, então paramos
+        break;
       }
     }
 
-    // 4. Retorno Final
     if (sugestaoEncontrada) {
-      res.status(200).json({
-        sugestao: sugestaoEncontrada,
-        message: 'Sugestão calculada com sucesso.'
-      });
+      res.json({ sugestao: sugestaoEncontrada, message: 'Sucesso.' });
     } else {
-      res.status(200).json({
-        sugestao: null,
-        message: 'Nenhuma regra corresponde às medidas fornecidas.'
-      });
+      res.json({ sugestao: null, message: 'Nenhuma regra atendeu às medidas.' });
     }
 
   } catch (error) {
-    console.error('Erro no cálculo da sugestão:', error.message);
-    res.status(500).json({ error: 'Erro interno ao calcular a sugestão.' });
+    console.error(error);
+    res.status(500).json({ error: 'Erro interno.' });
   }
 });
 
-// 9. ROTA GET: LISTAR TODOS OS PRODUTOS DO CATÁLOGO (Para o Painel Admin)
 // Ex: GET /api/produtos
+// 9. ROTA GET: LISTAR PRODUTOS (Com Paginação, Busca E FILTRO POR MODELAGEM)
 app.get('/api/produtos', authenticateAdmin, async (req, res) => {
-  // Esta rota é administrativa, requer autenticação
-  try {
-    const { data: produtos, error } = await supabase
-      .from('produtos_tamanhos')
-      .select('produto_id, nome_regra, status, id') // Campos essenciais
-      .order('nome_regra', { ascending: true });
+  const { page = 1, limit = 50, q = '', modelagem_id } = req.query;
 
-    if (error) {
-      console.error('Erro ao listar produtos:', error);
-      return res.status(500).json({ error: 'Falha ao buscar o catálogo de produtos.' });
+  try {
+    let query = supabase
+      .from('produtos_tamanhos')
+      .select('produto_id, nome_regra, status, id, modelagem_id', { count: 'exact' });
+
+    // 1. Filtro de Busca (Texto)
+    if (q) {
+      query = query.or(`nome_regra.ilike.%${q}%,produto_id.ilike.%${q}%`);
     }
 
-    res.status(200).json({ produtos: produtos });
+    // 2. NOVO: Filtro por Modelagem
+    if (modelagem_id) {
+      // Se estamos pedindo produtos de uma modelagem específica, filtramos por ela
+      query = query.eq('modelagem_id', modelagem_id);
+
+      // TRUQUE: Se filtrar por modelagem, queremos ver TODOS vinculados, 
+      // então não aplicamos o range de paginação pequena (limit 50), 
+      // ou aumentamos o limite para garantir que a lista venha completa na aba.
+      // Vamos assumir um limite alto para essa view (ex: 1000).
+      const safeLimit = 1000;
+      const from = (page - 1) * safeLimit;
+      const to = from + safeLimit - 1;
+      query = query.range(from, to);
+    } else {
+      // Comportamento padrão (Catálogo geral paginado)
+      const from = (page - 1) * limit;
+      const to = from + parseInt(limit) - 1;
+      query = query.range(from, to);
+    }
+
+    const { data, error, count } = await query.order('nome_regra', { ascending: true });
+
+    if (error) throw error;
+
+    res.json({
+      produtos: data,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / (modelagem_id ? 1000 : limit))
+    });
+
   } catch (error) {
-    console.error('Erro na listagem de produtos:', error.message);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
+    console.error('Erro listar produtos:', error.message);
+    res.status(500).json({ error: 'Erro interno.' });
   }
 });
 
@@ -561,6 +501,228 @@ app.get('/api/regras/stats', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Erro geral stats:', error);
     res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
+// 13. LISTAR MODELAGENS
+app.get('/api/modelagens', authenticateAdmin, async (req, res) => {
+  try {
+    // Busca modelagens e conta produtos_tamanhos vinculados
+    // O Supabase tem uma sintaxe específica para counts em relações, mas para simplificar
+    // e garantir compatibilidade, faremos duas queries rápidas ou uma view.
+    // Vamos usar a abordagem simples: buscar modelagens e depois contar.
+
+    // 1. Busca Modelagens
+    const { data: modelagens, error } = await supabase
+      .from('modelagens')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // 2. Busca contagem de produtos agrupados por modelagem
+    // SELECT modelagem_id, count(*) FROM produtos_tamanhos GROUP BY modelagem_id
+    // Infelizmente o cliente JS do Supabase não faz GROUP BY simples facilmente sem RPC.
+    // Vamos fazer uma query que busca apenas os modelagem_id dos produtos para contar no JS do server.
+    // (Para escalas gigantes isso muda, mas para < 10k produtos é ultra rápido)
+
+    const { data: produtos } = await supabase
+      .from('produtos_tamanhos')
+      .select('modelagem_id');
+
+    // Conta: { 'uuid-modelagem-1': 5, 'uuid-modelagem-2': 10 }
+    const counts = {};
+    if (produtos) {
+      produtos.forEach(p => {
+        if (p.modelagem_id) {
+          counts[p.modelagem_id] = (counts[p.modelagem_id] || 0) + 1;
+        }
+      });
+    }
+
+    // Mescla a contagem no objeto da modelagem
+    const result = modelagens.map(m => ({
+      ...m,
+      total_produtos: counts[m.id] || 0
+    }));
+
+    res.json(result);
+
+  } catch (err) {
+    console.error('Erro listar modelagens:', err);
+    res.status(500).json({ error: 'Erro ao listar modelagens.' });
+  }
+});
+
+// 14. CRIAR NOVA MODELAGEM
+app.post('/api/modelagens', authenticateAdmin, async (req, res) => {
+  const { nome } = req.body;
+  if (!nome) return res.status(400).json({ error: 'Nome é obrigatório.' });
+
+  try {
+    const { data, error } = await supabase
+      .from('modelagens')
+      .insert([{ nome }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (err) {
+    console.error('Erro criar modelagem:', err);
+    res.status(500).json({ error: 'Erro ao criar modelagem.' });
+  }
+});
+
+// 15. VINCULAR PRODUTO A UMA MODELAGEM
+app.put('/api/produtos/:id/vincular', authenticateAdmin, async (req, res) => {
+  const { id } = req.params; // ID do Produto (UUID interno)
+  const { modelagem_id } = req.body; // ID da Modelagem
+
+  try {
+    const { error } = await supabase
+      .from('produtos_tamanhos')
+      .update({ modelagem_id: modelagem_id })
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, message: 'Produto vinculado com sucesso.' });
+  } catch (err) {
+    console.error('Erro vincular:', err);
+    res.status(500).json({ error: 'Erro ao vincular produto.' });
+  }
+});
+
+// 16. ROTA GET: DETALHES DE UMA MODELAGEM
+app.get('/api/modelagens/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('modelagens')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Erro ao buscar detalhes da modelagem:', err);
+    res.status(500).json({ error: 'Erro ao buscar modelagem.' });
+  }
+});
+
+// 17. ROTA POST: VINCULAR VÁRIOS PRODUTOS A UMA MODELAGEM (EM MASSA)
+app.post('/api/produtos/vincular-mass', authenticateAdmin, async (req, res) => {
+  const { product_ids, modelagem_id } = req.body;
+  // product_ids deve ser um Array: ['uuid-1', 'uuid-2']
+
+  if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
+    return res.status(400).json({ error: 'Lista de produtos inválida.' });
+  }
+
+  try {
+    // Atualiza todos os produtos cujo ID esteja na lista
+    const { error } = await supabase
+      .from('produtos_tamanhos')
+      .update({ modelagem_id: modelagem_id })
+      .in('id', product_ids); // .in() é o segredo para fazer em lote
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: `${product_ids.length} produtos vinculados com sucesso.`
+    });
+
+  } catch (err) {
+    console.error('Erro vínculo em massa:', err);
+    res.status(500).json({ error: 'Erro ao vincular produtos.' });
+  }
+});
+
+// 18. ROTA POST: DESVINCULAR PRODUTOS (EM MASSA)
+app.post('/api/produtos/desvincular-mass', authenticateAdmin, async (req, res) => {
+  const { product_ids } = req.body;
+
+  if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
+    return res.status(400).json({ error: 'Lista de produtos inválida.' });
+  }
+
+  try {
+    // Define modelagem_id como NULL para os produtos selecionados
+    const { error } = await supabase
+      .from('produtos_tamanhos')
+      .update({ modelagem_id: null })
+      .in('id', product_ids);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Produtos desvinculados com sucesso.' });
+
+  } catch (err) {
+    console.error('Erro desvincular:', err);
+    res.status(500).json({ error: 'Erro ao desvincular produtos.' });
+  }
+});
+
+// 19. ROTA GET: DASHBOARD STATS (KPIs Reais e Lista de Atenção)
+app.get('/api/dashboard/stats', authenticateAdmin, async (req, res) => {
+  try {
+    // 1. Contagem Total de Produtos
+    const { count: total, error: errTotal } = await supabase
+      .from('produtos_tamanhos')
+      .select('*', { count: 'exact', head: true }); // 'head: true' só conta, não baixa dados!
+
+    if (errTotal) throw errTotal;
+
+    // 2. Contagem de Configurados (onde modelagem_id não é nulo)
+    const { count: configured, error: errConfig } = await supabase
+      .from('produtos_tamanhos')
+      .select('*', { count: 'exact', head: true })
+      .not('modelagem_id', 'is', null);
+
+    if (errConfig) throw errConfig;
+
+    // 3. Buscar os 5 primeiros produtos "sem modelagem" para a lista de atenção
+    const { data: attentionList, error: errAtt } = await supabase
+      .from('produtos_tamanhos')
+      .select('id, produto_id, nome_regra')
+      .is('modelagem_id', null)
+      .limit(5);
+
+    if (errAtt) throw errAtt;
+
+    // Retorna tudo mastigado para o front
+    res.json({
+      kpis: {
+        total: total || 0,
+        configured: configured || 0,
+        missing: (total || 0) - (configured || 0)
+      },
+      attention: attentionList || []
+    });
+
+  } catch (err) {
+    console.error('Erro dashboard stats:', err);
+    res.status(500).json({ error: 'Erro ao calcular estatísticas.' });
+  }
+});
+
+// 20. ROTA PÚBLICA: CHECAR DISPONIBILIDADE DO WIDGET
+app.get('/api/widget/check/:produtoId', async (req, res) => {
+  const { produtoId } = req.params;
+  try {
+    const { data } = await supabase
+      .from('produtos_tamanhos')
+      .select('modelagem_id')
+      .eq('produto_id', produtoId)
+      .single();
+
+    // Retorna true se tiver modelagem, false se não
+    res.json({ available: !!data?.modelagem_id });
+  } catch (err) {
+    res.json({ available: false });
   }
 });
 

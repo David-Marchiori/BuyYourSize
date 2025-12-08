@@ -1,19 +1,16 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-// Importando a nova função de stats
-import { getCatalogProducts, getConfiguredRuleStats } from '@/api/apiService'; 
+// Agora importamos a função específica de stats
+import { getDashboardStats } from '@/api/apiService'; 
 import { 
   Shirt, AlertTriangle, Activity, TrendingUp, 
   Calendar, ArrowRight, CheckCircle2 
 } from 'lucide-vue-next';
 
-const router = useRouter(
-      
-);
+const router = useRouter();
 const loading = ref(true);
 
-// Estados Reativos
 const kpis = ref({
     importedProducts: 0,
     configuredProducts: 0,
@@ -23,55 +20,39 @@ const kpis = ref({
 
 const attentionProducts = ref([]);
 
-// --- LÓGICA DE CÁLCULO ---
-const calculateStats = (allProducts, ruleStats) => {
-    const total = allProducts.length;
-    
-    // 1. Configurados: Conta quantos IDs de produtos existem no objeto de estatísticas
-    // ruleStats é algo tipo: { 'uuid-1': 2, 'uuid-2': 1 }
-    const configuredCount = Object.keys(ruleStats).length;
-
-    // 2. Sem Regras: O resto
-    const missingCount = total - configuredCount;
-
-    kpis.value = {
-        importedProducts: total,
-        configuredProducts: configuredCount,
-        missingRules: missingCount < 0 ? 0 : missingCount, // Evita negativo se houver inconsistência
-        recommendationsLast30Days: '0' // Placeholder
-    };
-
-    // 3. Lista de Atenção: Produtos que NÃO estão no ruleStats
-    attentionProducts.value = allProducts
-        .filter(p => !ruleStats[p.id]) // Se não tem chave no stats, não tem regra
-        .slice(0, 5) // Pega só os 5 primeiros
-        .map(p => ({
-            id: p.id,
-            produto_id: p.produto_id,
-            name: p.nome_regra || 'Produto sem nome',
-            reason: 'Regra de medidas pendente'
-        }));
-};
-
 const fetchData = async () => {
     loading.value = true;
     try {
-        // Busca Produtos e Stats em paralelo para ser rápido
-        const [productsData, statsData] = await Promise.all([
-            getCatalogProducts(),
-            getConfiguredRuleStats()
-        ]);
+        // Chamada única e leve ao servidor
+        const data = await getDashboardStats();
 
-        const allProducts = productsData || [];
-        const ruleStats = statsData || {};
+        // Popula os KPIs com os dados reais do banco
+        kpis.value = {
+            importedProducts: data.kpis.total,
+            configuredProducts: data.kpis.configured,
+            missingRules: data.kpis.missing,
+            recommendationsLast30Days: '0' // Futuro: virá de outra tabela
+        };
 
-        calculateStats(allProducts, ruleStats);
+        // Popula a lista de atenção
+        attentionProducts.value = data.attention.map(p => ({
+            id: p.id,
+            produto_id: p.produto_id,
+            name: p.nome_regra || 'Produto sem nome',
+            reason: 'Sem modelagem vinculada'
+        }));
 
     } catch (err) {
-        console.error('Erro ao carregar dashboard:', err);
+        console.error('Erro dashboard:', err);
     } finally {
         loading.value = false;
     }
+};
+
+// Ação ao clicar no item de atenção
+const resolveIssue = (sku) => {
+    // Redireciona para o catálogo filtrando por aquele SKU
+    router.push({ name: 'catalog', query: { q: sku } });
 };
 
 onMounted(fetchData);
@@ -180,7 +161,7 @@ onMounted(fetchData);
         
         <div v-if="attentionProducts.length === 0" class="empty-list">
             <CheckCircle2 :size="24" color="#22c55e" />
-            <p>Nenhum produto pendente!</p>
+            <p>Tudo configurado nesta lista!</p>
         </div>
 
         <div v-else class="list-container">
@@ -188,7 +169,7 @@ onMounted(fetchData);
             v-for="item in attentionProducts" 
             :key="item.id" 
             class="list-item"
-            @click="router.push({ name: 'rules', params: { produtoId: item.produto_id } })"
+            @click="resolveIssue(item.produto_id)" 
           >
             <div class="item-icon-wrapper">
               <AlertTriangle :size="16" />
@@ -201,8 +182,8 @@ onMounted(fetchData);
           </div>
         </div>
         
-        <button v-if="attentionProducts.length > 0" class="btn-text" @click="router.push({name: 'CreateRule'})">
-            Ver todos pendentes
+        <button v-if="attentionProducts.length > 0" class="btn-text" @click="router.push({name: 'catalog'})">
+            Gerenciar no Catálogo
         </button>
       </div>
 
@@ -211,7 +192,6 @@ onMounted(fetchData);
 </template>
 
 <style scoped>
-/* ESTILOS MANTIDOS IDÊNTICOS */
 .skeleton { background: #f1f5f9; height: 160px; border-radius: 16px; animation: pulse 1.5s infinite; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 .empty-chart { height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; border: 2px dashed #e2e8f0; border-radius: 12px; margin-top: 20px; }

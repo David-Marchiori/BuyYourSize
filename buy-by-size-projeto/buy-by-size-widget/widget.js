@@ -1,15 +1,15 @@
 // buy-by-size-widget/widget.js
 
-(function() {
+(function () {
     console.log("📏 Buy by Size Widget (Wizard Mode) Carregado...");
 
     // --- CONFIGURAÇÃO ---
     const config = window.BuyBySizeConfig || {};
     const productId = config.productId;
     const targetSelector = config.targetElement || 'body';
-    
+
     // ⚠️ SUBSTITUA PELA SUA URL REAL
-    const API_BASE_URL = 'https://expert-couscous-vj9xr7wp7q5c4qx-3000.app.github.dev/api'; 
+    const API_BASE_URL = 'https://expert-couscous-vj9xr7wp7q5c4qx-3000.app.github.dev/api';
 
     if (!productId) return console.warn("Buy by Size: ID faltando.");
 
@@ -101,7 +101,7 @@
             </div>
             ${state.error ? `<p style="color:red; font-size:0.9em;">${state.error}</p>` : ''}
         `;
-        
+
         footerContent.innerHTML = `
             <button class="bbs-btn bbs-btn-primary" id="btn-next-1">Ajuste Fino (Busto/Cintura)</button>
         `;
@@ -110,8 +110,8 @@
         document.getElementById('btn-next-1').onclick = () => {
             const h = document.getElementById('inp-height').value;
             const w = document.getElementById('inp-weight').value;
-            if(!h || !w) { state.error = "Preencha altura e peso."; render(); return; }
-            
+            if (!h || !w) { state.error = "Preencha altura e peso."; render(); return; }
+
             state.data.altura = h;
             state.data.peso = w;
             state.error = '';
@@ -145,7 +145,7 @@
         ['busto', 'cintura', 'quadril'].forEach(key => {
             const range = document.getElementById(`range-${key}`);
             const number = document.getElementById(`num-${key}`);
-            
+
             // Sincroniza Range -> Number
             range.oninput = (e) => {
                 state.data[key] = e.target.value;
@@ -178,7 +178,7 @@
 
     function renderResult() {
         titleEl.innerText = "Resultado";
-        
+
         if (state.result) {
             bodyContent.innerHTML = `
                 <div class="bbs-result-container">
@@ -220,7 +220,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            
+
             const json = await res.json();
 
             if (json.sugestao) {
@@ -259,10 +259,33 @@
     }
 
     // Inicialização
+    // --- VERIFICAÇÃO DE DISPONIBILIDADE ---
+    async function checkAvailability() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/widget/check/${productId}`);
+            const json = await res.json();
+            return json.available;
+        } catch (e) {
+            console.warn('Erro ao verificar widget:', e);
+            return false;
+        }
+    }
+
+    // Inicialização
     const targetElement = document.querySelector(targetSelector);
-    if (targetElement) targetElement.appendChild(createTriggerButton());
+
+    if (targetElement) {
+        // Só desenha o botão se o produto tiver regras configuradas
+        checkAvailability().then(isAvailable => {
+            if (isAvailable) {
+                targetElement.appendChild(createTriggerButton());
+            } else {
+                console.log('BuyBySize: Produto sem regras, widget oculto.');
+            }
+        });
+    }
 
     document.getElementById('bbs-close').onclick = () => overlay.classList.remove('is-open');
-    overlay.onclick = (e) => { if(e.target === overlay) overlay.classList.remove('is-open'); };
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('is-open'); };
 
 })();
