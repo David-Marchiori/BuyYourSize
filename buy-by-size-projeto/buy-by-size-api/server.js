@@ -19,7 +19,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'https://buy-your-size.vercel.app',
-  'https://expert-couscous-vj9xr7wp7q5c4qx-5173.app.github.dev'
+  'https://village23.com.br',
+  'https://expert-couscous-vj9xr7wp7q5c4qx-5173.app.github.dev',
+  'https://expert-couscous-vj9xr7wp7q5c4qx-5500.app.github.dev'
   // Adicione domínios de clientes aqui no futuro
 ];
 
