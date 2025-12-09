@@ -1,10 +1,10 @@
 // src/api/apiService.js
 
 import axios from 'axios';
+import { supabase } from '@/supabase'; // <--- ADICIONE ESTA LINHA OBRIGATÓRIA
 
 // Lê as chaves do arquivo .env (graças ao Vite)
 const API_URL = import.meta.env.VITE_API_URL;
-
 
 // Cria uma instância do Axios para a API de Backend
 const apiClient = axios.create({
@@ -16,13 +16,17 @@ const apiClient = axios.create({
 
 // INTERCEPTOR: Injeta o token do usuário logado antes de cada requisição
 apiClient.interceptors.request.use(async (config) => {
+  // Agora o 'supabase' existe aqui dentro!
   const { data } = await supabase.auth.getSession();
 
   if (data?.session?.access_token) {
-    // Manda o token do usuário real
+    // Manda o token do usuário real (Bearer TOKEN_GIGANTE...)
     config.headers.Authorization = `Bearer ${data.session.access_token}`;
   } else {
-    // Fallback: Se não tiver logado (ex: login page), usa a chave pública ou admin se necessário
+    // Fallback: Se não estiver logado, você pode decidir se manda a chave mestra (apenas local)
+    // ou se deixa a requisição falhar (correto para segurança).
+    // Para facilitar seu teste LOCAL, você pode descomentar abaixo se tiver a chave no .env:
+
     // config.headers['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY; 
   }
   return config;

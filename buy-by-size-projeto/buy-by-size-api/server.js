@@ -1,86 +1,69 @@
-// server.js
+// server.js (Início do Arquivo)
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios'); // Novo para baixar o XML
-const xml2js = require('xml2js'); // Novo para fazer o parsing do XML
-const app = express();
+const { createClient } = require('@supabase/supabase-js'); // 1. Importação
+const axios = require('axios');
+const xml2js = require('xml2js');
 const path = require('path');
+
+const app = express();
 const PORT = process.env.PORT || 3000;
 
-// TORNAR A PASTA PUBLIC ACESSÍVEL
+// Configuração de Pasta Pública e JSON
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
-// const swaggerUi = require('swagger-ui-express');
-// const swaggerJsdoc = require('swagger-jsdoc');
+// Configuração de CORS (Segurança)
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://buy-your-size.vercel.app',
+  'https://expert-couscous-vj9xr7wp7q5c4qx-5173.app.github.dev'
+  // Adicione domínios de clientes aqui no futuro
+];
 
-// --- Configuração do Swagger ---
-// const swaggerOptions = {
-//   definition: {
-//     openapi: '3.0.0',
-//     info: {
-//       title: 'Buy by Size API',
-//       version: '1.0.0',
-//       description: 'API para gerenciamento de regras de medidas e sugestão de tamanhos.',
-//     },
-//     servers: [
-//       {
-//         url: `http://localhost:${process.env.PORT || 3000}`,
-//         description: 'Servidor Local',
-//       },
-//     ],
-//     components: {
-//       securitySchemes: {
-//         ApiKeyAuth: {
-//           type: 'apiKey',
-//           in: 'header',
-//           name: 'X-API-Key', // O nome do header que configuramos
-//         },
-//       },
-//     },
-//     security: [
-//       {
-//         ApiKeyAuth: [],
-//       },
-//     ],
-//   },
-//   // Arquivos onde o Swagger vai procurar os comentários de documentação
-//   apis: ['./server.js'], 
-// };
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 
-// const swaggerDocs = swaggerJsdoc(swaggerOptions);
-// // Rota para acessar a documentação
-// app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
+// 2. INICIALIZAÇÃO DO SUPABASE (CRUCIAL: Antes do middleware)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Middleware de autenticação de administrador (usa chave simples)
-// Middleware Avançado: Autentica e Descobre a Loja
+// 3. MIDDLEWARE DE AUTENTICAÇÃO (Agora ele enxerga 'supabase')
 const authenticateAdmin = async (req, res, next) => {
-  // 1. Verifica se é a chave Mestra (Seu uso local ou de emergência)
+  // --- A. Chave Mestra (Seu uso local/Admin Geral) ---
   const apiKey = req.headers['x-api-key'];
+
   if (apiKey === process.env.ADMIN_API_KEY) {
     req.storeId = '00000000-0000-0000-0000-000000000000'; // Loja Padrão
     return next();
   }
 
-  // 2. Verifica Token de Usuário Real (Multi-Tenant)
+  // --- B. Token de Usuário (Login Real Multi-Tenant) ---
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Token ausente' });
 
   const token = authHeader.split(' ')[1]; // Remove o "Bearer "
 
   try {
-    // Pergunta ao Supabase quem é o dono desse token
+    // Agora o 'supabase' existe e funciona aqui dentro!
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) return res.status(401).json({ error: 'Token inválido' });
 
-    // Descobre qual loja pertence a esse usuário
+    // Busca qual loja esse usuário pertence
     const { data: storeLink } = await supabase
       .from('store_users')
       .select('store_id')
@@ -91,7 +74,7 @@ const authenticateAdmin = async (req, res, next) => {
       return res.status(403).json({ error: 'Usuário não tem loja vinculada.' });
     }
 
-    // SUCESSO: Define a loja para o resto das rotas usarem
+    // Define a loja para o resto das rotas
     req.storeId = storeLink.store_id;
     next();
 
@@ -100,12 +83,6 @@ const authenticateAdmin = async (req, res, next) => {
     return res.status(500).json({ error: 'Erro na autenticação' });
   }
 };
-
-// Define as origens permitidas (Substitua por domínios reais de produção)
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://buy-your-size.vercel.app'
-];
 
 const corsOptions = {
   // A função verifica se a origem da requisição está na lista allowedOrigins
