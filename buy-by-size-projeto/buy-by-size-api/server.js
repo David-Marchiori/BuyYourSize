@@ -60,46 +60,45 @@ const supabase = createClient(
 
 // Middleware de autenticação de administrador (usa chave simples)
 // Middleware Avançado: Autentica e Descobre a Loja
-const authMiddleware = async (req, res, next) => {
-  // 1. Tenta pegar o token do Header (Authorization: Bearer ...)
-  // O Supabase Auth no frontend manda isso automaticamente se configurado,
-  // MAS no seu código atual do axios (apiService), você está mandando 'X-API-Key'.
-  // Para multi-tenant real, precisamos saber QUEM é o usuário, então o token JWT é melhor.
-
-  // POR ENQUANTO (Transição): Vamos manter a API Key para Admin Geral, 
-  // mas buscar a loja padrão se for a sua chave mestre.
-
+const authenticateAdmin = async (req, res, next) => {
+  // 1. Verifica se é a chave Mestra (Seu uso local ou de emergência)
   const apiKey = req.headers['x-api-key'];
-
   if (apiKey === process.env.ADMIN_API_KEY) {
-    // Modo Super Admin (Seu uso local): Usa a loja padrão criada no SQL
-    req.storeId = '00000000-0000-0000-0000-000000000000';
+    req.storeId = '00000000-0000-0000-0000-000000000000'; // Loja Padrão
     return next();
   }
 
-  // FUTURO (Quando tiver login real de clientes):
-  /*
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token ausente' });
+  // 2. Verifica Token de Usuário Real (Multi-Tenant)
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Token ausente' });
 
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Token inválido' });
+  const token = authHeader.split(' ')[1]; // Remove o "Bearer "
 
-  // Busca qual loja esse usuário pertence
-  const { data: storeLink } = await supabase
-    .from('store_users')
-    .select('store_id')
-    .eq('user_id', user.id)
-    .single();
+  try {
+    // Pergunta ao Supabase quem é o dono desse token
+    const { data: { user }, error } = await supabase.auth.getUser(token);
 
-  if (!storeLink) return res.status(403).json({ error: 'Usuário sem loja vinculada' });
-  
-  req.storeId = storeLink.store_id; // Injeta o ID da loja na requisição
-  next();
-  */
+    if (error || !user) return res.status(401).json({ error: 'Token inválido' });
 
-  // Se não passou no IF da API Key e o código acima está comentado:
-  return res.status(403).json({ error: 'Acesso negado.' });
+    // Descobre qual loja pertence a esse usuário
+    const { data: storeLink } = await supabase
+      .from('store_users')
+      .select('store_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!storeLink) {
+      return res.status(403).json({ error: 'Usuário não tem loja vinculada.' });
+    }
+
+    // SUCESSO: Define a loja para o resto das rotas usarem
+    req.storeId = storeLink.store_id;
+    next();
+
+  } catch (err) {
+    console.error('Erro Auth:', err);
+    return res.status(500).json({ error: 'Erro na autenticação' });
+  }
 };
 
 // Define as origens permitidas (Substitua por domínios reais de produção)

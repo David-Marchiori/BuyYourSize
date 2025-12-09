@@ -4,17 +4,29 @@ import axios from 'axios';
 
 // Lê as chaves do arquivo .env (graças ao Vite)
 const API_URL = import.meta.env.VITE_API_URL;
-const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY;
+
 
 // Cria uma instância do Axios para a API de Backend
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': ADMIN_API_KEY
+    'Content-Type': 'application/json'
   }
 });
 
+// INTERCEPTOR: Injeta o token do usuário logado antes de cada requisição
+apiClient.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+
+  if (data?.session?.access_token) {
+    // Manda o token do usuário real
+    config.headers.Authorization = `Bearer ${data.session.access_token}`;
+  } else {
+    // Fallback: Se não tiver logado (ex: login page), usa a chave pública ou admin se necessário
+    // config.headers['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY; 
+  }
+  return config;
+});
 // --- PRODUTOS ---
 
 /**
