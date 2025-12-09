@@ -206,6 +206,7 @@
         try {
             const payload = {
                 produto_id: productId,
+                store_id: config.storeId,
                 medidas: {
                     altura: parseFloat(state.data.altura),
                     peso: parseFloat(state.data.peso),

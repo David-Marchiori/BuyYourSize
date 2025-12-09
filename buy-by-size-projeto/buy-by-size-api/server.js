@@ -335,24 +335,26 @@ const evaluateCondition = (medidaCliente, operador, valorRegra) => {
   }
 };
 
-// 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO
+// 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO (Blindada por store_id)
 app.post('/api/sugestao', async (req, res) => {
-  const { produto_id, medidas } = req.body; // produto_id aqui é o SKU (ex: SKU-1001)
+  // NOVO: Exige o store_id no payload
+  const { produto_id, medidas, store_id } = req.body;
 
-  if (!produto_id || !medidas) {
-    return res.status(400).json({ error: 'Dados incompletos.' });
+  if (!produto_id || !medidas || !store_id) {
+    return res.status(400).json({ error: 'Dados incompletos. O store_id é obrigatório.' });
   }
 
   try {
-    // 1. Buscar o Produto para descobrir qual é a MODELAGEM dele
+    // 1. Buscar o Produto, FILTRANDO POR LOJA
     const { data: produto, error: prodError } = await supabase
       .from('produtos_tamanhos')
-      .select('modelagem_id') // <--- Agora buscamos a modelagem!
+      .select('modelagem_id')
       .eq('produto_id', produto_id)
+      .eq('store_id', store_id) // <--- TRAVA CRÍTICA ADICIONADA AQUI
       .single();
 
     if (prodError || !produto) {
-      return res.status(404).json({ error: 'Produto não encontrado.' });
+      return res.status(404).json({ error: 'Produto não encontrado ou não pertence a esta loja.' });
     }
 
     if (!produto.modelagem_id) {
@@ -362,28 +364,28 @@ app.post('/api/sugestao', async (req, res) => {
       });
     }
 
-    // 2. Buscar regras vinculadas àquela MODELAGEM (não mais ao produto direto)
-    // Note que na tabela regras_detalhes, agora filtramos por 'modelagem_id'
-    // (Você precisará garantir que suas regras no banco tenham essa coluna preenchida)
+    // 2. Buscar regras (O resto da lógica permanece o mesmo)
     const { data: regras, error: regrasError } = await supabase
       .from('regras_detalhes')
       .select('*')
-      .eq('modelagem_id', produto.modelagem_id) // <--- Mudança aqui
+      .eq('modelagem_id', produto.modelagem_id)
       .order('prioridade', { ascending: false });
 
     if (regrasError || !regras || regras.length === 0) {
       return res.status(200).json({ sugestao: null, message: 'Sem regras configuradas para esta modelagem.' });
     }
 
-    // 3. Lógica de Avaliação (Mantém a mesma função evaluateCondition que já existe)
+    // 3. Lógica de Avaliação (Mantida)
     let sugestaoEncontrada = null;
     for (const regra of regras) {
       let todasVerdadeiras = true;
+      // ... (Resto da lógica de avaliação)
       for (const condicao of regra.condicoes) {
         const medidaCliente = medidas[condicao.campo];
         if (medidaCliente === undefined || medidaCliente === null) {
           todasVerdadeiras = false; break;
         }
+        // Usar a função evaluateCondition que está definida no server.js
         if (!evaluateCondition(parseFloat(medidaCliente), condicao.operador, parseFloat(condicao.valor))) {
           todasVerdadeiras = false; break;
         }
