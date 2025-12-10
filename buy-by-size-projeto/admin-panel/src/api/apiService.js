@@ -215,7 +215,18 @@ export const getModelingDetails = async (id) => {
 export const createModeling = async (nome, tipo) => {
   try {
     // AQUI ESTAVA O ERRO: Adicionei ', tipo'
-    const response = await apiClient.post('/modelagens', { nome, tipo });
+    const storeId = localStorage.getItem('store_id') || 'SEU_UUID_REAL_AQUI_SE_FOR_TESTE_SEM_LOGIN';
+    if (!storeId) {
+      console.error("ERRO: Store ID não encontrado no frontend.");
+      throw new Error("Usuário não autenticado ou Store ID perdido.");
+    }
+
+    const response = await apiClient.post('/modelagens', {
+      nome,
+      tipo,
+      store_id: storeId
+    });
+
     return response.data;
   } catch (error) {
     console.error('Erro ao criar modelagem:', error);
