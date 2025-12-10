@@ -294,14 +294,11 @@ export const getDashboardStats = async () => {
 
 export const getProductsByModeling = async (modelingId) => {
   try {
-    // Chama a rota de produtos filtrando pelo ID da modelagem
-    const response = await apiClient.get('/produtos', {
-      params: { modelagem_id: modelingId }
-    });
-    return response.data.produtos; // Retorna a lista direta
+    const response = await apiClient.get(`/modelagens/${modelingId}/produtos`);
+    return response.data;
   } catch (error) {
-    console.error('Erro ao buscar produtos da modelagem:', error);
-    throw error;
+    console.error('Erro ao buscar produtos vinculados:', error);
+    return []; // Retorna array vazio para não quebrar a tela
   }
 };
 

@@ -68,17 +68,27 @@ const savingProducts = ref(false);
 const loadPageData = async () => {
     loading.value = true;
     try {
+        // 1. Carrega Detalhes da Modelagem
         const details = await getModelingDetails(modelingId);
         if (details) {
             modelingName.value = details.nome;
-            currentModelingType.value = details.tipo || 'roupa'; // <--- 2. Pegar o tipo
+            // CORREÇÃO CRÍTICA: Se vier null, força 'roupa'
+            currentModelingType.value = details.tipo || 'roupa'; 
+            console.log("Tipo da Modelagem:", currentModelingType.value); // Debug
         }
         
+        // 2. Carrega Regras
         rules.value = await getModelingRules(modelingId);
+
+        // 3. Carrega Produtos Vinculados (Usando a função corrigida)
+        const linked = await getProductsByModeling(modelingId);
+        linkedProducts.value = linked || [];
         
-        // ... (resto igual: getProductsByModeling) ...
+        console.log("Produtos Carregados:", linkedProducts.value); // Debug
+
     } catch (err) {
-        // ...
+        errorMessage.value = 'Erro ao carregar dados.';
+        console.error(err);
     } finally {
         loading.value = false;
     }
@@ -94,10 +104,10 @@ const handleSaveShoe = async () => {
         const payload = {
             modelagem_id: modelingId,
             sugestao_tamanho: newShoeRule.value.sugestao_tamanho,
-            pe_min: parseFloat(newShoeRule.value.pe_min),
-            pe_max: parseFloat(newShoeRule.value.pe_max),
+            pe_min: newShoeRule.value.pe_min ? parseFloat(newShoeRule.value.pe_min) : null,
+            pe_max: newShoeRule.value.pe_max ? parseFloat(newShoeRule.value.pe_max) : null,
             prioridade: 0, 
-            condicoes: [] // Vazio pois é sapato
+            condicoes: []
         };
 
         await saveRule(payload);
@@ -247,7 +257,7 @@ onMounted(loadPageData);
           <button v-if="activeTab === 'products'" class="btn-primary" @click="openLinkModal">
             <Plus :size="18" /> Vincular Produto
           </button>
-          <button v-if="activeTab === 'rules'" class="btn-primary" @click="openCreateForm" :disabled="showForm">
+          <button v-if="activeTab === 'rules' && currentModelingType !== 'calcado'" class="btn-primary" @click="openCreateForm" :disabled="showForm">
             <Plus :size="18" /> Nova Regra
           </button>
       </div>
@@ -278,7 +288,7 @@ onMounted(loadPageData);
         
         <div v-if="activeTab === 'rules'" class="tab-content animate-up" style="animation-delay: 0.1s">
             
-            <div class="type-banner" :class="currentModelingType">
+            <div class="type-banner" :class="currentModelingType === 'calcado' ? 'calcado' : 'roupa'">
                 <Footprints v-if="currentModelingType === 'calcado'" :size="20"/>
                 <Shirt v-else :size="20"/>
                 <span>
@@ -327,14 +337,42 @@ onMounted(loadPageData);
                         Nenhum tamanho cadastrado ainda. Adicione acima.
                     </div>
                 </div>
-
             </div>
 
             <div v-else>
-                 <div v-if="rules.length === 0" class="state-box empty">...</div>
-                 <div v-else class="rules-grid">...</div>
-            </div>
+                 <div v-if="rules.length === 0" class="state-box empty">
+                    <Ruler :size="40" class="icon-faded" />
+                    <h3>Nenhuma regra definida</h3>
+                    <p>Ensine o provador como sugerir tamanhos para esta modelagem.</p>
+                    <button class="btn-outline" @click="openCreateForm">Criar Primeira Regra</button>
+                 </div>
 
+                 <div v-else class="rules-grid">
+                    <div v-for="rule in rules" :key="rule.id" class="rule-card" :class="{ 'editing': currentRule && currentRule.id === rule.id }">
+                        <div class="card-content">
+                            <div class="rule-conditions">
+                                <span class="label-section">SE:</span>
+                                <div class="conditions-container">
+                                    <div v-for="(cond, idx) in rule.condicoes" :key="idx" class="condition-badge">
+                                        <span class="cond-field">{{ getFieldLabel(cond.campo) }}</span>
+                                        <span class="cond-op">{{ getOperatorLabel(cond.operador) }}</span>
+                                        <span class="cond-val">{{ cond.valor }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rule-arrow"><ChevronRight :size="24" /></div>
+                            <div class="rule-result">
+                                <span class="label-section">SUGERIR:</span>
+                                <div class="size-box">{{ rule.sugestao_tamanho }}</div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn-action edit" @click="openEditForm(rule)"><Edit2 :size="14"/> Editar</button>
+                            <button class="btn-action delete" @click="handleDeleteRule(rule.id)"><Trash2 :size="14"/> Excluir</button>
+                        </div>
+                    </div>
+                 </div>
+            </div>
         </div>
 
         <div v-if="activeTab === 'products'" class="tab-content animate-up" style="animation-delay: 0.1s">
@@ -362,7 +400,7 @@ onMounted(loadPageData);
                             <td>
                                 <div class="prod-info-row">
                                     <div class="icon-sq"><Shirt :size="16"/></div>
-                                    <span class="p-name">{{ prod.nome_regra }}</span>
+                                    <span class="p-name">{{ prod.nome || 'Produto sem nome' }}</span>
                                 </div>
                             </td>
                             <td class="text-code">{{ prod.produto_id }}</td>
@@ -385,6 +423,7 @@ onMounted(loadPageData);
                 </div>
                 <div class="sidebar-content">
                     <div v-if="errorMessage" class="alert error"><AlertCircle :size="16"/> {{ errorMessage }}</div>
+                    
                     <div class="form-section highlight-section">
                         <label>Resultado</label>
                         <div class="result-inputs">
@@ -392,6 +431,7 @@ onMounted(loadPageData);
                             <div class="input-col"><span class="sub-label">Prioridade</span><input type="number" v-model.number="currentRule.prioridade" class="input-big"></div>
                         </div>
                     </div>
+
                     <div class="form-section">
                         <div class="section-top"><label>Condições</label><button class="btn-small" @click="addCondition"><Plus :size="14"/> Add</button></div>
                         <div class="conditions-list-form">
@@ -445,7 +485,7 @@ onMounted(loadPageData);
                         <div v-if="selectedForLinking.includes(prod.id) || prod.modelagem_id === modelingId" class="check-fill"></div>
                     </div>
                     <div class="prod-info">
-                        <span class="prod-name">{{ prod.nome_regra }}</span>
+                        <span class="prod-name">{{ prod.nome || prod.nome_regra }}</span>
                         <span class="prod-sku">{{ prod.produto_id }}</span>
                     </div>
                     <span v-if="prod.modelagem_id === modelingId" class="tag-current">Já Vinculado</span>

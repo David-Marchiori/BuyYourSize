@@ -199,8 +199,10 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
 });
 // 4. CRIAR REGRA (Blindado)
 app.post('/api/regras', authenticateAdmin, async (req, res) => {
-  const { modelagem_id, condicoes, sugestao_tamanho, prioridade } = req.body;
-
+  const { modelagem_id, condicoes, sugestao_tamanho, prioridade, pe_min, pe_max } = req.body;
+  if (!modelagem_id || !sugestao_tamanho) {
+    return res.status(400).json({ error: 'Dados obrigatórios faltando.' });
+  }
   // SEGURANÇA: Verifica se a modelagem pertence à loja do usuário antes de inserir
   const { data: modelagem } = await supabase
     .from('modelagens')
@@ -212,22 +214,26 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
   if (!modelagem) return res.status(403).json({ error: 'Modelagem não pertence à sua loja.' });
 
   try {
-    const { error, data } = await supabase
+    // 2. ADICIONE OS CAMPOS NO INSERT DO SUPABASE
+    const { data, error } = await supabase
       .from('regras_detalhes')
       .insert([{
         modelagem_id,
-        condicoes,
         sugestao_tamanho,
-        prioridade: prioridade || 10
-        // Nota: regras_detalhes não tem store_id direto, pois herda da modelagem.
-        // Mas garantimos a segurança checando a modelagem acima.
+        condicoes: condicoes || [], // Garante array vazio se não vier nada
+        prioridade: prioridade || 0,
+        pe_min: pe_min || null, // <--- NOVO: Grava o mínimo
+        pe_max: pe_max || null  // <--- NOVO: Grava o máximo
       }])
-      .select();
+      .select()
+      .single();
 
     if (error) throw error;
-    res.status(201).json({ success: true, regra: data[0] });
+    res.status(201).json(data);
+
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar regra.' });
+    console.error("Erro ao criar regra:", err);
+    res.status(500).json({ error: 'Erro ao salvar regra.' });
   }
 });
 
@@ -545,6 +551,48 @@ app.get('/api/regras/stats', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Erro geral stats:', error);
     res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
+app.get('/api/regras/:modelagemId', authenticateAdmin, async (req, res) => {
+  const { modelagemId } = req.params;
+
+  try {
+    // Busca as regras
+    const { data, error } = await supabase
+      .from('regras_detalhes')
+      .select('*')
+      .eq('modelagem_id', modelagemId)
+      // Ordenação inteligente: 
+      // Se for sapato, queremos ordenar pelo tamanho do pé (pe_min)
+      // Se for roupa, pela prioridade (ou ordem de criação)
+      // O Supabase permite ordenar múltiplos campos. Nulls ficam por último geralmente.
+      .order('pe_min', { ascending: true, nullsFirst: false })
+      .order('prioridade', { ascending: true });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar regras.' });
+  }
+});
+
+// 2. ROTA GET: BUSCAR PRODUTOS VINCULADOS A UMA MODELAGEM
+// (Essa provavelmente é a que está faltando ou falhando para você)
+app.get('/api/modelagens/:id/produtos', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('produtos_tamanhos')
+      .select('*') // Pega ID, Nome, Foto, SKU...
+      .eq('modelagem_id', id)
+      .eq('store_id', req.storeId); // Segurança: Só produtos desta loja
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar produtos vinculados.' });
   }
 });
 
