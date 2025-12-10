@@ -214,17 +214,12 @@ export const getModelingDetails = async (id) => {
 // Cria uma nova modelagem
 export const createModeling = async (nome, tipo) => {
   try {
-    // AQUI ESTAVA O ERRO: Adicionei ', tipo'
-    const storeId = localStorage.getItem('store_id') || 'SEU_UUID_REAL_AQUI_SE_FOR_TESTE_SEM_LOGIN';
-    if (!storeId) {
-      console.error("ERRO: Store ID não encontrado no frontend.");
-      throw new Error("Usuário não autenticado ou Store ID perdido.");
-    }
+    // Não precisa mais buscar storeId aqui!
+    // O token de autenticação (JWT) no header já diz pro backend quem é o usuário.
 
     const response = await apiClient.post('/modelagens', {
       nome,
-      tipo,
-      store_id: storeId
+      tipo
     });
 
     return response.data;

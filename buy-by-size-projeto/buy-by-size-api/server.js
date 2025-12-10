@@ -577,23 +577,35 @@ app.get('/api/modelagens', authenticateAdmin, async (req, res) => {
   }
 });
 
-// 14. CRIAR MODELAGEM (Blindado)
+// 14. CRIAR MODELAGEM (Agora usando a trava de segurança do middleware)
 app.post('/api/modelagens', authenticateAdmin, async (req, res) => {
-  const { nome, store_id, tipo } = req.body;
+  // Recebemos apenas o nome e o tipo do frontend
+  const { nome, tipo } = req.body;
+
   try {
+    // ⚠️ AQUI ESTÁ A CORREÇÃO:
+    // Usamos req.storeId (vindo do middleware) em vez de pedir no corpo da requisição.
+    const storeId = req.storeId;
+
+    if (!storeId) {
+      return res.status(403).json({ error: 'Loja não identificada.' });
+    }
+
     const { data, error } = await supabase
       .from('modelagens')
       .insert([{
         nome: nome,
-        store_id: store_id,
-        tipo: tipo || 'roupa' // <--- GRAVA COM O ID DA LOJA (Obrigatório)
+        store_id: storeId, // <--- ID Automático e Seguro
+        tipo: tipo || 'roupa'
       }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
+
   } catch (err) {
+    console.error("Erro ao criar modelagem:", err);
     res.status(500).json({ error: 'Erro ao criar modelagem.' });
   }
 });
