@@ -357,3 +357,21 @@
         transform: scale(1);
     }
 }
+
+/* Caixa com borda laranja */
+.bbs-warning-box {
+    border-color: #f39c12;
+    color: #f39c12;
+}
+
+/* Ícone de exclamação laranja */
+.bbs-warning-badge {
+    background-color: #f39c12;
+    box-shadow: 0 4px 10px rgba(243, 156, 18, 0.4);
+}
+
+/* Faixa de texto laranja claro */
+.bbs-warning-info {
+    background-color: #fcf3cf;
+    color: #d68910;
+}

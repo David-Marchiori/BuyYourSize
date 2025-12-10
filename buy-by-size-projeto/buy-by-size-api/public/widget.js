@@ -6,10 +6,10 @@
     // URL da imagem (Se não vier da config, fica vazio e o CSS cuida do cinza)
     const productImage = config.productImage || '';
 
-    const targetSelector = config.targetElement || 'form.cart';
+    const targetSelector = config.targetElement || '.js-addtocart';
 
     // ⚠️ SUA URL DE TESTE LOCAL
-    const API_BASE_URL = 'https://buy-by-size-api.fly.dev/api';
+    const API_BASE_URL = config.API_BASE_URL;
 
     if (!productId) return console.warn("Buy by Size: ID faltando.");
 
@@ -67,7 +67,6 @@
     }
 
     function renderStep1() {
-        // Note a <div class="bbs-anim-enter"> envolvendo TUDO
         contentArea.innerHTML = `
             <div class="bbs-anim-enter">
                 <div class="bbs-header">
@@ -83,8 +82,8 @@
                 <div class="bbs-form-group">
                     <label class="bbs-label">Altura</label>
                     <div class="bbs-input-row">
-                        <input type="number" id="inp-height" class="bbs-input" value="${state.data.altura}" placeholder="1.75">
-                        <span class="bbs-unit">m</span> 
+                        <input type="number" id="inp-height" class="bbs-input" value="${state.data.altura}" placeholder="175">
+                        <span class="bbs-unit">cm</span> 
                     </div>
                 </div>
 
@@ -108,13 +107,30 @@
             </div>
         `;
 
-        // ... (resto dos eventos de clique continua igual) ...
+        // EVENTOS DE CLIQUE
         document.getElementById('btn-female').onclick = () => { state.gender = 'female'; render(); };
         document.getElementById('btn-male').onclick = () => { state.gender = 'male'; render(); };
+
         document.getElementById('btn-next-1').onclick = () => {
-            // ... lógica de validação igual ...
-            // Se passar:
-            state.step = 2; render();
+            const hInput = document.getElementById('inp-height');
+            const wInput = document.getElementById('inp-weight');
+
+            const h = hInput.value;
+            const w = wInput.value;
+
+            if (!h || !w) {
+                state.error = "Preencha altura e peso para continuar.";
+                render();
+                return;
+            }
+
+            // SALVA O VALOR EM CM MESMO (EX: 175)
+            state.data.altura = h;
+            state.data.peso = w;
+            state.error = '';
+
+            state.step = 2;
+            render();
         };
     }
 
@@ -176,11 +192,15 @@
     }
 
     function renderResult() {
+        const hasResult = !!state.result; // Transforma em booleano (true/false)
         const size = state.result || '?';
 
-        contentArea.innerHTML = `
-            <div class="bbs-anim-enter" style="height: 100%; display: flex; flex-direction: column;">
-                
+        // LÓGICA DE TEMPLATE: Sucesso vs Falha
+        let contentHTML = '';
+
+        if (hasResult) {
+            // --- CENÁRIO DE SUCESSO (O que você já tinha) ---
+            contentHTML = `
                 <div class="bbs-header">
                     <h3 class="bbs-title">Sua Recomendação</h3>
                     <p class="bbs-subtitle">Baseado nas suas medidas, esta é a melhor opção.</p>
@@ -209,21 +229,52 @@
                             Caimento ideal para sua altura
                         </div>
                     </div>
-
-                    ${state.error ? `<p style="color:red; margin-top:10px;">${state.error}</p>` : ''}
                 </div>
+            `;
+        } else {
+            // --- CENÁRIO DE FALHA / NÃO ENCONTRADO ---
+            contentHTML = `
+                <div class="bbs-header">
+                    <h3 class="bbs-title">Resultado Indefinido</h3>
+                    <p class="bbs-subtitle">Não conseguimos determinar um tamanho exato.</p>
+                </div>
+                
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    
+                    <div class="bbs-size-box bbs-warning-box">
+                        <span style="font-size:30px">?</span>
+                        <div class="bbs-check-badge bbs-warning-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                        </div>
+                    </div>
 
+                    <p style="font-size: 15px; text-align:center; color: #666; margin-bottom: 20px; max-width: 80%;">
+                        ${state.error || "Suas medidas parecem estar fora da grade padrão deste produto."}
+                    </p>
+
+                    <div style="width: 100%; max-width: 280px;">
+                         <div class="bbs-match-info bbs-warning-info">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                            Verifique se digitou corretamente
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Renderiza o HTML decidido acima
+        contentArea.innerHTML = `
+            <div class="bbs-anim-enter" style="height: 100%; display: flex; flex-direction: column;">
+                ${contentHTML}
                 <div class="bbs-footer-area" style="justify-content: space-between; gap: 10px;">
-                     <button class="bbs-btn-outline" id="btn-edit" style="flex: 1;">Editar Medidas</button>
+                     <button class="bbs-btn-outline" id="btn-edit" style="flex: 1;">${hasResult ? 'Refazer Teste' : 'Ajustar Medidas'}</button>
                      <button class="bbs-btn-next" id="btn-close-final" style="flex: 1; background-color: #333;">Fechar</button>
                 </div>
             </div>
-         `;
+        `;
 
         // AÇÃO DOS BOTÕES
         document.getElementById('btn-close-final').onclick = () => overlay.classList.remove('open');
-
-        // Editar volta para o passo 1 (ou 2, se preferir o ajuste fino)
         document.getElementById('btn-edit').onclick = () => {
             state.step = 1;
             render();
@@ -232,20 +283,35 @@
 
     // --- API CALL ---
     async function submitData() {
+        if (!state.data.altura || !state.data.peso) {
+            state.step = 1;
+            render();
+            return;
+        }
+
         state.loading = true;
         state.step = 3;
         render();
 
         try {
+            // CONVERSÃO DE CM PARA METROS
+            let alturaMetros = parseFloat(state.data.altura);
+
+            // Se o usuário digitou > 3 (ex: 175), assumimos que é CM e dividimos por 100.
+            // Se ele digitou 1.75, mantemos assim. É uma segurança dupla.
+            if (alturaMetros > 3) {
+                alturaMetros = alturaMetros / 100;
+            }
+
             const payload = {
                 produto_id: productId,
-                store_id: config.storeId || '00000000-0000-0000-0000-000000000000',
+                store_id: config.storeId,
                 medidas: {
-                    altura: parseFloat(state.data.altura),
-                    peso: parseFloat(state.data.peso),
-                    busto: parseFloat(state.data.busto),
-                    cintura: parseFloat(state.data.cintura),
-                    quadril: parseFloat(state.data.quadril)
+                    altura: alturaMetros, // Enviamos em metros (1.75)
+                    peso: parseFloat(state.data.peso) || 0,
+                    busto: parseFloat(state.data.busto) || 0,
+                    cintura: parseFloat(state.data.cintura) || 0,
+                    quadril: parseFloat(state.data.quadril) || 0
                 }
             };
 
@@ -297,24 +363,65 @@
     document.getElementById('bbs-close').onclick = () => overlay.classList.remove('open');
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
 
-    // Injeta botão na página
+    function waitForElement(selector) {
+        return new Promise(resolve => {
+            if (document.querySelector(selector)) {
+                return resolve(document.querySelector(selector));
+            }
+
+            const observer = new MutationObserver(mutations => {
+                if (document.querySelector(selector)) {
+                    observer.disconnect();
+                    resolve(document.querySelector(selector));
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        });
+    }
+
     async function init() {
-        const targetElement = document.querySelector(targetSelector);
-        if (!targetElement) return;
+        // Tenta pegar o seletor da config ou usa um fallback
+        const targetSelector = config.targetElement || '.js-addtocart';
+
+        console.log(`BuyBySize: Procurando alvo "${targetSelector}"...`);
 
         try {
-            // Verificação simplificada para teste
+            // 1. VERIFICA DISPONIBILIDADE NA API
             const res = await fetch(`${API_BASE_URL}/widget/check/${productId}`);
             const json = await res.json();
 
-            if (json.available) {
-                targetElement.appendChild(createTriggerButton());
-            } else {
-                console.log("Widget oculto (Sem regras)");
+            if (!json.available) {
+                console.log("BuyBySize: Widget inativo para este produto.");
+                return;
             }
-        } catch (e) { console.error(e); }
+
+            // 2. ESPERA O ELEMENTO ALVO APARECER (MÁXIMO 10 SEGUNDOS)
+            // Aqui está o segredo: ele não desiste imediatamente
+            const targetElement = await waitForElement(targetSelector);
+
+            if (targetElement) {
+                console.log("BuyBySize: Alvo encontrado!", targetElement);
+
+                // Cria o botão
+                const btn = createTriggerButton();
+
+                // Injeta (APPEND ou PREPEND dependendo do layout)
+                // Usar prepend costuma ser mais seguro para não quebrar formulários
+                targetElement.prepend(btn);
+
+            } else {
+                console.error("BuyBySize: Alvo não encontrado após espera.");
+            }
+
+        } catch (e) {
+            console.error("BuyBySize: Erro na inicialização", e);
+        }
     }
 
+    // Inicia (agora é seguro chamar direto pois o waitForElement cuida do tempo)
     init();
-
 })();
