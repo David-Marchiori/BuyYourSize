@@ -212,9 +212,10 @@ export const getModelingDetails = async (id) => {
 };
 
 // Cria uma nova modelagem
-export const createModeling = async (nome) => {
+export const createModeling = async (nome, tipo) => {
   try {
-    const response = await apiClient.post('/modelagens', { nome });
+    // AQUI ESTAVA O ERRO: Adicionei ', tipo'
+    const response = await apiClient.post('/modelagens', { nome, tipo });
     return response.data;
   } catch (error) {
     console.error('Erro ao criar modelagem:', error);

@@ -348,15 +348,75 @@
     }
 
     function createTriggerButton() {
+        // Verifica se já existe para não criar duplicado
+        if (document.getElementById('bbs-trigger-btn')) return document.getElementById('bbs-trigger-btn');
+
         const btn = document.createElement('button');
         btn.id = 'bbs-trigger-btn';
         btn.type = 'button';
+        // Estilo inline para garantir visibilidade imediata e margem
+        btn.style.cssText = "display: flex; align-items: center; justify-content: center; width: 100%; margin-bottom: 10px; cursor: pointer;";
+
         btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="auto" x="0" y="0" viewBox="0 0 128 128" style="enable-background:new 0 0 512 512" xml:space="preserve" class=""><g><path fill="#444b54" d="M112.6 127H15.4c-5.8 0-10.6-3.6-12.4-9.1s.2-11.2 4.9-14.6l63-44.6c3.5-2.5 5.4-6.6 5-10.9-.5-5.6-5.1-10.3-10.7-10.8-6.2-.6-11.7 3.5-13 9.5-.3 1.6-1.9 2.7-3.5 2.3-1.6-.3-2.7-1.9-2.3-3.5 1.9-9 10.2-15.2 19.4-14.3 8.6.8 15.4 7.7 16.1 16.3.6 6.5-2.2 12.6-7.5 16.3l-63 44.6c-3.1 2.2-3.4 5.5-2.6 7.8.8 2.4 2.9 4.9 6.7 4.9h97.1c3.8 0 5.9-2.5 6.7-4.9s.5-5.7-2.6-7.8L74.4 78.4c-1.4-1-1.7-2.8-.7-4.2s2.8-1.7 4.2-.7l42.2 29.9c4.7 3.3 6.6 9 4.9 14.6s-6.7 9-12.4 9z" opacity="1" data-original="#444b54" class=""></path></g></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="20" height="20" viewBox="0 0 128 128" style="margin-right:8px; fill:currentColor"><g><path d="M112.6 127H15.4c-5.8 0-10.6-3.6-12.4-9.1s.2-11.2 4.9-14.6l63-44.6c3.5-2.5 5.4-6.6 5-10.9-.5-5.6-5.1-10.3-10.7-10.8-6.2-.6-11.7 3.5-13 9.5-.3 1.6-1.9 2.7-3.5 2.3-1.6-.3-2.7-1.9-2.3-3.5 1.9-9 10.2-15.2 19.4-14.3 8.6.8 15.4 7.7 16.1 16.3.6 6.5-2.2 12.6-7.5 16.3l-63 44.6c-3.1 2.2-3.4 5.5-2.6 7.8.8 2.4 2.9 4.9 6.7 4.9h97.1c3.8 0 5.9-2.5 6.7-4.9s.5-5.7-2.6-7.8L74.4 78.4c-1.4-1-1.7-2.8-.7-4.2s2.8-1.7 4.2-.7l42.2 29.9c4.7 3.3 6.6 9 4.9 14.6s-6.7 9-12.4 9z"></path></g></svg>
             Achar o Tamanho Certo
         `;
         btn.onclick = openModal;
         return btn;
+    }
+
+    // Função para esperar o elemento aparecer
+    function waitForElement(selector) {
+        return new Promise(resolve => {
+            if (document.querySelector(selector)) return resolve(document.querySelector(selector));
+
+            const observer = new MutationObserver(mutations => {
+                if (document.querySelector(selector)) {
+                    observer.disconnect();
+                    resolve(document.querySelector(selector));
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+    }
+
+    // Função "Vigia": Garante que o botão fique lá
+    function ensureWidgetVisibility(targetElement) {
+        const inject = () => {
+            if (!document.getElementById('bbs-trigger-btn')) {
+                console.log("BuyBySize: Re-injetando botão...");
+                const btn = createTriggerButton();
+                // Tenta inserir ANTES do alvo (menos chance de ser apagado)
+                // Se preferir dentro, use targetElement.prepend(btn);
+                targetElement.parentNode.insertBefore(btn, targetElement);
+            }
+        };
+
+        // 1. Injeta imediatamente
+        inject();
+
+        // 2. Cria um observador para ver se o botão é apagado
+        const observer = new MutationObserver((mutations) => {
+            let removed = false;
+            mutations.forEach(mutation => {
+                if (mutation.removedNodes.length > 0) {
+                    mutation.removedNodes.forEach(node => {
+                        if (node.id === 'bbs-trigger-btn') removed = true;
+                    });
+                }
+            });
+
+            // Se o botão sumiu ou se o container mudou muito, tenta injetar de novo
+            if (removed || !document.getElementById('bbs-trigger-btn')) {
+                inject();
+            }
+        });
+
+        // Observa o PAI do elemento alvo (pois se o alvo for substituído, precisamos saber)
+        if (targetElement.parentNode) {
+            observer.observe(targetElement.parentNode, { childList: true, subtree: true });
+        }
     }
 
     // Fecha ao clicar no X ou fora
@@ -384,41 +444,27 @@
     }
 
     async function init() {
-        // Tenta pegar o seletor da config ou usa um fallback
         const targetSelector = config.targetElement || '.js-addtocart';
-
         console.log(`BuyBySize: Procurando alvo "${targetSelector}"...`);
 
         try {
-            // 1. VERIFICA DISPONIBILIDADE NA API
             const res = await fetch(`${API_BASE_URL}/widget/check/${productId}`);
             const json = await res.json();
 
-            if (!json.available) {
-                console.log("BuyBySize: Widget inativo para este produto.");
-                return;
-            }
+            if (!json.available) return console.log("BuyBySize: Widget inativo.");
 
-            // 2. ESPERA O ELEMENTO ALVO APARECER (MÁXIMO 10 SEGUNDOS)
-            // Aqui está o segredo: ele não desiste imediatamente
+            // Espera o alvo aparecer
             const targetElement = await waitForElement(targetSelector);
 
             if (targetElement) {
-                console.log("BuyBySize: Alvo encontrado!", targetElement);
-
-                // Cria o botão
-                const btn = createTriggerButton();
-
-                // Injeta (APPEND ou PREPEND dependendo do layout)
-                // Usar prepend costuma ser mais seguro para não quebrar formulários
-                targetElement.prepend(btn);
-
+                console.log("BuyBySize: Alvo encontrado, ativando vigia.");
+                ensureWidgetVisibility(targetElement);
             } else {
-                console.error("BuyBySize: Alvo não encontrado após espera.");
+                console.error("BuyBySize: Alvo não encontrado.");
             }
 
         } catch (e) {
-            console.error("BuyBySize: Erro na inicialização", e);
+            console.error("BuyBySize: Erro init", e);
         }
     }
 

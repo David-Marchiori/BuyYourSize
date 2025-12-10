@@ -317,73 +317,94 @@ const evaluateCondition = (medidaCliente, operador, valorRegra) => {
 
 // 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO (Blindada por store_id)
 app.post('/api/sugestao', async (req, res) => {
-  // NOVO: Exige o store_id no payload
   const { produto_id, medidas, store_id } = req.body;
 
   if (!produto_id || !medidas || !store_id) {
-    return res.status(400).json({ error: 'Dados incompletos. O store_id é obrigatório.' });
+    return res.status(400).json({ error: 'Dados incompletos.' });
   }
 
   try {
-    // 1. Buscar o Produto, FILTRANDO POR LOJA
+    // 1. Identificar o Produto e o Tipo de Tabela
     const { data: produto, error: prodError } = await supabase
       .from('produtos_tamanhos')
-      .select('modelagem_id')
+      .select('modelagem_id, modelagens(tipo)')
       .eq('produto_id', produto_id)
-      .eq('store_id', store_id) // <--- TRAVA CRÍTICA ADICIONADA AQUI
+      .eq('store_id', store_id)
       .single();
 
     if (prodError || !produto) {
-      return res.status(404).json({ error: 'Produto não encontrado ou não pertence a esta loja.' });
+      return res.status(404).json({ error: 'Produto não encontrado.' });
     }
 
     if (!produto.modelagem_id) {
-      return res.status(200).json({
-        sugestao: null,
-        message: 'Este produto ainda não possui uma tabela de medidas vinculada.'
-      });
+      return res.status(200).json({ sugestao: null, message: 'Sem tabela vinculada.' });
     }
 
-    // 2. Buscar regras (O resto da lógica permanece o mesmo)
+    const tipoTabela = produto.modelagens?.tipo || 'roupa';
+
+    // 2. Buscar as Regras de Tamanho
     const { data: regras, error: regrasError } = await supabase
       .from('regras_detalhes')
       .select('*')
       .eq('modelagem_id', produto.modelagem_id)
-      .order('prioridade', { ascending: false });
+      .order('prioridade', { ascending: false }); // Ou order 'pe_min' se for sapato
 
-    if (regrasError || !regras || regras.length === 0) {
-      return res.status(200).json({ sugestao: null, message: 'Sem regras configuradas para esta modelagem.' });
+    if (!regras || regras.length === 0) {
+      return res.status(200).json({ sugestao: null, message: 'Tabela vazia.' });
     }
 
-    // 3. Lógica de Avaliação (Mantida)
     let sugestaoEncontrada = null;
-    for (const regra of regras) {
-      let todasVerdadeiras = true;
-      // ... (Resto da lógica de avaliação)
-      for (const condicao of regra.condicoes) {
-        const medidaCliente = medidas[condicao.campo];
-        if (medidaCliente === undefined || medidaCliente === null) {
-          todasVerdadeiras = false; break;
-        }
-        // Usar a função evaluateCondition que está definida no server.js
-        if (!evaluateCondition(parseFloat(medidaCliente), condicao.operador, parseFloat(condicao.valor))) {
-          todasVerdadeiras = false; break;
+
+    // === BIFURCAÇÃO DA LÓGICA ===
+
+    if (tipoTabela === 'calcado') {
+      // 👟 LÓGICA DE SAPATO (Simples: Range em CM)
+      // Esperamos que o front envie: { pe: 26.5 }
+      const peCliente = parseFloat(medidas.pe);
+
+      if (!peCliente) {
+        return res.json({ sugestao: null, message: 'Medida do pé inválida.' });
+      }
+
+      // Procura onde o pé se encaixa
+      for (const regra of regras) {
+        // Ex: Se pé (26.5) >= min (26.0) E pé (26.5) <= max (27.0)
+        if (peCliente >= parseFloat(regra.pe_min) && peCliente <= parseFloat(regra.pe_max)) {
+          sugestaoEncontrada = regra.sugestao_tamanho;
+          break; // Achou, para o loop
         }
       }
-      if (todasVerdadeiras) {
-        sugestaoEncontrada = regra.sugestao_tamanho;
-        break;
+
+    } else {
+      // 👕 LÓGICA DE ROUPA (A sua lógica complexa atual)
+      // Mantenha o seu loop 'for' existente aqui dentro
+      for (const regra of regras) {
+        let todasVerdadeiras = true;
+        for (const condicao of regra.condicoes) {
+          const medidaCliente = medidas[condicao.campo];
+          if (medidaCliente === undefined || medidaCliente === null) {
+            todasVerdadeiras = false; break;
+          }
+          if (!evaluateCondition(parseFloat(medidaCliente), condicao.operador, parseFloat(condicao.valor))) {
+            todasVerdadeiras = false; break;
+          }
+        }
+        if (todasVerdadeiras) {
+          sugestaoEncontrada = regra.sugestao_tamanho;
+          break;
+        }
       }
     }
 
+    // 3. Resposta Final
     if (sugestaoEncontrada) {
-      res.json({ sugestao: sugestaoEncontrada, message: 'Sucesso.' });
+      res.json({ sugestao: sugestaoEncontrada, tipo: tipoTabela });
     } else {
-      res.json({ sugestao: null, message: 'Nenhuma regra atendeu às medidas.' });
+      res.json({ sugestao: null, message: 'Nenhum tamanho encontrado para suas medidas.' });
     }
 
   } catch (error) {
-    console.error(error);
+    console.error("Erro API:", error);
     res.status(500).json({ error: 'Erro interno.' });
   }
 });
@@ -558,13 +579,14 @@ app.get('/api/modelagens', authenticateAdmin, async (req, res) => {
 
 // 14. CRIAR MODELAGEM (Blindado)
 app.post('/api/modelagens', authenticateAdmin, async (req, res) => {
-  const { nome } = req.body;
+  const { nome, store_id, tipo } = req.body;
   try {
     const { data, error } = await supabase
       .from('modelagens')
       .insert([{
-        nome,
-        store_id: req.storeId // <--- GRAVA COM O ID DA LOJA (Obrigatório)
+        nome: nome,
+        store_id: store_id,
+        tipo: tipo || 'roupa' // <--- GRAVA COM O ID DA LOJA (Obrigatório)
       }])
       .select()
       .single();
@@ -736,17 +758,33 @@ app.get('/api/dashboard/stats', authenticateAdmin, async (req, res) => {
 // 20. ROTA PÚBLICA: CHECAR DISPONIBILIDADE DO WIDGET
 app.get('/api/widget/check/:produtoId', async (req, res) => {
   const { produtoId } = req.params;
+  const { storeId } = req.query; // (Se você já implementou filtro por loja, senão ignore)
+
   try {
-    const { data } = await supabase
+    // Buscamos o produto e o TIPO da modelagem associada
+    const { data: produto, error } = await supabase
       .from('produtos_tamanhos')
-      .select('modelagem_id')
+      .select('modelagem_id, modelagens(tipo)') // <--- O PULO DO GATO: TRAZ O TIPO
       .eq('produto_id', produtoId)
+      // .eq('store_id', storeId) // Descomente se já estiver usando store_id
       .single();
 
-    // Retorna true se tiver modelagem, false se não
-    res.json({ available: !!data?.modelagem_id });
+    if (error || !produto || !produto.modelagem_id) {
+      return res.json({ available: false });
+    }
+
+    // Retorna TRUE e o TIPO ('roupa' ou 'calcado')
+    // Se modelagens.tipo for nulo (tabelas antigas), assume 'roupa'
+    const tipo = produto.modelagens?.tipo || 'roupa';
+
+    return res.json({
+      available: true,
+      type: tipo
+    });
+
   } catch (err) {
-    res.json({ available: false });
+    console.error(err);
+    return res.json({ available: false });
   }
 });
 

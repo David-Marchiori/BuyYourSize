@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { getModelings, createModeling } from '@/api/apiService';
 import { 
-    Ruler, Plus, Edit2, Search, CheckCircle2, Shirt
+    Ruler, Plus, Edit2, Search, CheckCircle2, Shirt, Footprints // <--- 1. IMPORTAR FOOTPRINTS
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -11,6 +11,7 @@ const modelings = ref([]);
 const loading = ref(true);
 const showCreateModal = ref(false);
 const newName = ref('');
+const newType = ref('roupa'); // <--- 2. NOVA VARIÁVEL DE ESTADO
 const creating = ref(false);
 const searchQuery = ref('');
 
@@ -29,8 +30,11 @@ const handleCreate = async () => {
     if (!newName.value.trim()) return;
     creating.value = true;
     try {
-        await createModeling(newName.value);
+        // <--- 3. PASSAR O TIPO PARA A API
+        await createModeling(newName.value, newType.value); 
+        
         newName.value = '';
+        newType.value = 'roupa'; // Resetar para o padrão
         showCreateModal.value = false;
         await fetchModelings();
     } catch (err) {
@@ -40,6 +44,7 @@ const handleCreate = async () => {
     }
 };
 
+// ... resto do código (computed, onMounted) igual ...
 const filteredModelings = computed(() => {
     if (!searchQuery.value) return modelings.value;
     const term = searchQuery.value.toLowerCase();
@@ -119,11 +124,32 @@ onMounted(fetchModelings);
 
     </div>
 
-    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+   <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
         <div class="modal-card animate-scale">
             <h3>Nova Modelagem</h3>
-            <label>Nome da Tabela (Ex: Calça Jeans Skinny)</label>
+
+            <label>O que você vai medir?</label>
+            <div class="type-selector">
+                <div 
+                    class="type-option" 
+                    :class="{ active: newType === 'roupa' }"
+                    @click="newType = 'roupa'"
+                >
+                    <Shirt :size="20" />
+                    <span>Vestuário</span>
+                </div>
+                <div 
+                    class="type-option" 
+                    :class="{ active: newType === 'calcado' }"
+                    @click="newType = 'calcado'"
+                >
+                    <Footprints :size="20" />
+                    <span>Calçados</span>
+                </div>
+            </div>
+            <label>Nome da Tabela (Ex: {{ newType === 'roupa' ? 'Calça Jeans' : 'Tênis Running' }})</label>
             <input v-model="newName" placeholder="Digite o nome..." autofocus @keyup.enter="handleCreate">
+            
             <div class="modal-actions">
                 <button class="btn-text" @click="showCreateModal = false">Cancelar</button>
                 <button class="btn-primary" @click="handleCreate" :disabled="creating || !newName">
@@ -213,4 +239,43 @@ onMounted(fetchModelings);
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .animate-scale { animation: scaleIn 0.2s ease-out forwards; }
 @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* 5. ESTILOS DO SELETOR DE TIPO */
+.type-selector {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.type-option {
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #64748b;
+    background: #f8fafc;
+}
+
+.type-option span {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.type-option:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+
+.type-option.active {
+    border-color: var(--color-primary); /* Usa a cor azul definida no seu projeto */
+    background: #eff6ff; /* Azul bem clarinho */
+    color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
 </style>
