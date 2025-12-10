@@ -10,7 +10,7 @@ import {
 import { 
   ArrowLeft, Plus, Save, Trash2, Edit2, X, 
   AlertCircle, CheckCircle2, Ruler, ChevronRight, Shirt, Search,
-  LayoutList, Unlink
+  LayoutList, Unlink, Footprints
 } from 'lucide-vue-next';
 
 // --- CONSTANTES ---
@@ -41,6 +41,15 @@ const rules = ref([]);
 const linkedProducts = ref([]); 
 const loading = ref(true);
 
+
+const isShoeTable = computed(() => modelingName.value.includes('(Calçado)') || (currentModelingType.value === 'calcado'));
+const currentModelingType = ref('roupa');
+const newShoeRule = ref({
+    sugestao_tamanho: '',
+    pe_min: '',
+    pe_max: ''
+});
+
 // Estado Edição Regra
 const showForm = ref(false); 
 const isEditing = ref(false);
@@ -59,21 +68,49 @@ const savingProducts = ref(false);
 const loadPageData = async () => {
     loading.value = true;
     try {
-        // Busca nome e regras
         const details = await getModelingDetails(modelingId);
-        if (details) modelingName.value = details.nome;
+        if (details) {
+            modelingName.value = details.nome;
+            currentModelingType.value = details.tipo || 'roupa'; // <--- 2. Pegar o tipo
+        }
         
         rules.value = await getModelingRules(modelingId);
-
-        // Busca APENAS os produtos vinculados a esta modelagem
-        const linked = await getProductsByModeling(modelingId);
-        linkedProducts.value = linked || [];
-
+        
+        // ... (resto igual: getProductsByModeling) ...
     } catch (err) {
-        errorMessage.value = 'Erro ao carregar dados.';
-        console.error(err);
+        // ...
     } finally {
         loading.value = false;
+    }
+};
+
+const handleSaveShoe = async () => {
+    errorMessage.value = '';
+    if (!newShoeRule.value.sugestao_tamanho || !newShoeRule.value.pe_min || !newShoeRule.value.pe_max) {
+        return errorMessage.value = "Preencha tamanho, mínimo e máximo.";
+    }
+
+    try {
+        const payload = {
+            modelagem_id: modelingId,
+            sugestao_tamanho: newShoeRule.value.sugestao_tamanho,
+            pe_min: parseFloat(newShoeRule.value.pe_min),
+            pe_max: parseFloat(newShoeRule.value.pe_max),
+            prioridade: 0, 
+            condicoes: [] // Vazio pois é sapato
+        };
+
+        await saveRule(payload);
+        message.value = "Tamanho de calçado adicionado!";
+        
+        // Limpar e Recarregar
+        newShoeRule.value = { sugestao_tamanho: '', pe_min: '', pe_max: '' };
+        rules.value = await getModelingRules(modelingId);
+        
+        setTimeout(() => message.value = '', 2000);
+
+    } catch (err) {
+        errorMessage.value = "Erro ao salvar calçado.";
     }
 };
 
@@ -241,39 +278,63 @@ onMounted(loadPageData);
         
         <div v-if="activeTab === 'rules'" class="tab-content animate-up" style="animation-delay: 0.1s">
             
-            <div v-if="loading" class="state-box">Carregando regras...</div>
-            <div v-else-if="rules.length === 0" class="state-box empty">
-                <Ruler :size="40" class="icon-faded" />
-                <h3>Nenhuma regra definida</h3>
-                <p>Ensine o provador como sugerir tamanhos para esta modelagem.</p>
-                <button class="btn-outline" @click="openCreateForm">Criar Primeira Regra</button>
+            <div class="type-banner" :class="currentModelingType">
+                <Footprints v-if="currentModelingType === 'calcado'" :size="20"/>
+                <Shirt v-else :size="20"/>
+                <span>
+                    {{ currentModelingType === 'calcado' ? 'Tabela de Medidas de Calçados' : 'Tabela de Medidas de Vestuário' }}
+                </span>
             </div>
 
-            <div v-else class="rules-grid">
-                <div v-for="rule in rules" :key="rule.id" class="rule-card" :class="{ 'editing': currentRule && currentRule.id === rule.id }">
-                    <div class="card-content">
-                        <div class="rule-conditions">
-                            <span class="label-section">SE:</span>
-                            <div class="conditions-container">
-                                <div v-for="(cond, idx) in rule.condicoes" :key="idx" class="condition-badge">
-                                    <span class="cond-field">{{ getFieldLabel(cond.campo) }}</span>
-                                    <span class="cond-op">{{ getOperatorLabel(cond.operador) }}</span>
-                                    <span class="cond-val">{{ cond.valor }}</span>
-                                </div>
-                            </div>
+            <div v-if="loading" class="state-box">Carregando regras...</div>
+
+            <div v-else-if="currentModelingType === 'calcado'" class="shoe-interface">
+                
+                <div class="rule-card add-shoe-card">
+                    <h3>Adicionar Novo Tamanho</h3>
+                    <div class="shoe-inputs">
+                        <div class="grp">
+                            <label>Tamanho (Etiqueta)</label>
+                            <input v-model="newShoeRule.sugestao_tamanho" placeholder="Ex: 36" class="input-std">
                         </div>
-                        <div class="rule-arrow"><ChevronRight :size="24" /></div>
-                        <div class="rule-result">
-                            <span class="label-section">SUGERIR:</span>
-                            <div class="size-box">{{ rule.sugestao_tamanho }}</div>
+                        <div class="grp">
+                            <label>Pé Mínimo (cm)</label>
+                            <input type="number" step="0.1" v-model="newShoeRule.pe_min" placeholder="23.0" class="input-std">
                         </div>
+                        <div class="grp">
+                            <label>Pé Máximo (cm)</label>
+                            <input type="number" step="0.1" v-model="newShoeRule.pe_max" placeholder="23.5" class="input-std">
+                        </div>
+                        <button class="btn-primary" @click="handleSaveShoe">
+                            <Plus :size="18"/> Adicionar
+                        </button>
                     </div>
-                    <div class="card-footer">
-                        <button class="btn-action edit" @click="openEditForm(rule)"><Edit2 :size="14"/> Editar</button>
-                        <button class="btn-action delete" @click="handleDeleteRule(rule.id)"><Trash2 :size="14"/> Excluir</button>
+                    <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+                </div>
+
+                <div class="shoe-list">
+                    <div v-for="rule in rules" :key="rule.id" class="shoe-item">
+                        <div class="size-circle">{{ rule.sugestao_tamanho }}</div>
+                        <div class="range-info">
+                            <span class="range-label">Intervalo do Pé</span>
+                            <span class="range-val">{{ rule.pe_min }}cm <span class="arrow">→</span> {{ rule.pe_max }}cm</span>
+                        </div>
+                        <button class="btn-icon-del" @click="handleDeleteRule(rule.id)">
+                            <Trash2 :size="16"/>
+                        </button>
+                    </div>
+                    <div v-if="rules.length === 0" class="empty-shoe">
+                        Nenhum tamanho cadastrado ainda. Adicione acima.
                     </div>
                 </div>
+
             </div>
+
+            <div v-else>
+                 <div v-if="rules.length === 0" class="state-box empty">...</div>
+                 <div v-else class="rules-grid">...</div>
+            </div>
+
         </div>
 
         <div v-if="activeTab === 'products'" class="tab-content animate-up" style="animation-delay: 0.1s">
@@ -534,4 +595,53 @@ onMounted(loadPageData);
 .modal-card.animate-scale { animation: scaleIn 0.2s ease-out forwards; }
 @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (max-width: 1024px) { .content-layout { flex-direction: column; } .editor-sidebar { width: 100%; position: fixed; bottom: 0; top: auto; left: 0; right: 0; border-radius: 16px 16px 0 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); } .sidebar-content { max-height: 60vh; } }
+
+/* ESTILOS NOVOS PARA CALÇADOS */
+.type-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 24px;
+    font-weight: 700; color: #334155;
+}
+.type-banner.calcado { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.type-banner.roupa { background: #f0f9ff; color: #0369a1; border: 1px solid #e0f2fe; }
+
+.shoe-interface { display: flex; flex-direction: column; gap: 24px; }
+
+.add-shoe-card { padding: 20px; background: #f8fafc; border: 1px dashed #cbd5e1; }
+.add-shoe-card h3 { margin-top: 0; font-size: 1rem; color: #475569; margin-bottom: 15px; }
+
+.shoe-inputs { display: flex; gap: 16px; align-items: flex-end; }
+.grp { flex: 1; }
+.grp label { display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 6px; }
+.input-std { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 600; }
+
+.error-text { color: #dc2626; font-size: 0.9rem; margin-top: 10px; }
+
+.shoe-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+
+.shoe-item {
+    background: white; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 16px; display: flex; align-items: center; gap: 16px;
+    position: relative; transition: all 0.2s;
+}
+.shoe-item:hover { border-color: #94a3b8; transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+
+.size-circle {
+    width: 48px; height: 48px; background: #1e293b; color: white;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; font-weight: 800; flex-shrink: 0;
+}
+
+.range-info { display: flex; flex-direction: column; }
+.range-label { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; }
+.range-val { font-size: 0.95rem; font-weight: 600; color: #334155; }
+.arrow { color: #cbd5e1; margin: 0 4px; }
+
+.btn-icon-del {
+    position: absolute; top: 10px; right: 10px;
+    background: none; border: none; color: #cbd5e1; cursor: pointer;
+}
+.btn-icon-del:hover { color: #ef4444; }
+
+.empty-shoe { grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 40px; font-style: italic; }
 </style>
