@@ -357,17 +357,22 @@
 
     async function init() {
         const targetSelector = config.targetElement || '.js-addtocart';
+
+        // Garante que temos o storeId vindo do injector
+        const currentStoreId = config.storeId;
+
         try {
-            // 1. CHECAGEM NA API
-            const res = await fetch(`${API_BASE_URL}/widget/check/${productId}`);
+            // 1. CHECAGEM NA API (Agora enviando o storeId)
+            // ⚠️ MUDANÇA AQUI: Adicionado ?storeId=${currentStoreId}
+            const res = await fetch(`${API_BASE_URL}/widget/check/${productId}?storeId=${currentStoreId}`);
+
             const json = await res.json();
 
             if (!json.available) return;
 
-            // 2. DEFINE O TIPO COM BASE NA RESPOSTA (ROUPA OU CALCADO)
+            // ... (resto do código permanece igual) ...
             if (json.type) state.type = json.type;
 
-            // 3. INJETA O BOTÃO
             const targetElement = await waitForElement(targetSelector);
             if (targetElement) {
                 const inject = () => {

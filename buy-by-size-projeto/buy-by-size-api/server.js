@@ -240,7 +240,6 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
 // 5. BUSCAR REGRAS (Blindado)
 app.get('/api/regras', authenticateAdmin, async (req, res) => {
   const { modelagem_id } = req.query;
-
   // SEGURANÇA: Garante que a modelagem consultada é da loja
   const { data: modelagem } = await supabase
     .from('modelagens')
@@ -256,7 +255,9 @@ app.get('/api/regras', authenticateAdmin, async (req, res) => {
       .from('regras_detalhes')
       .select('*')
       .eq('modelagem_id', modelagem_id)
-      .order('prioridade', { ascending: false });
+      // ADICIONE A ORDENAÇÃO DE SAPATO AQUI TAMBÉM:
+      .order('pe_min', { ascending: true, nullsFirst: false })
+      .order('prioridade', { ascending: false }); // Note que prioridade geralmente é descrescente (maior ganha)
 
     res.status(200).json({ regras });
   } catch (err) {
@@ -818,23 +819,26 @@ app.get('/api/dashboard/stats', authenticateAdmin, async (req, res) => {
 // 20. ROTA PÚBLICA: CHECAR DISPONIBILIDADE DO WIDGET
 app.get('/api/widget/check/:produtoId', async (req, res) => {
   const { produtoId } = req.params;
-  const { storeId } = req.query; // (Se você já implementou filtro por loja, senão ignore)
+  const { storeId } = req.query;
+
+  if (!storeId) {
+    console.warn('Widget check sem storeId');
+    // Se não tiver storeId, é arriscado continuar. Melhor retornar false.
+    return res.json({ available: false });
+  }
 
   try {
-    // Buscamos o produto e o TIPO da modelagem associada
     const { data: produto, error } = await supabase
       .from('produtos_tamanhos')
-      .select('modelagem_id, modelagens(tipo)') // <--- O PULO DO GATO: TRAZ O TIPO
+      .select('modelagem_id, modelagens(tipo)')
       .eq('produto_id', produtoId)
-      // .eq('store_id', storeId) // Descomente se já estiver usando store_id
+      .eq('store_id', storeId) // <--- CORREÇÃO: LINHA DESCOMENTADA!
       .single();
 
     if (error || !produto || !produto.modelagem_id) {
       return res.json({ available: false });
     }
 
-    // Retorna TRUE e o TIPO ('roupa' ou 'calcado')
-    // Se modelagens.tipo for nulo (tabelas antigas), assume 'roupa'
     const tipo = produto.modelagens?.tipo || 'roupa';
 
     return res.json({
