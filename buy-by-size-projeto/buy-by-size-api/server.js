@@ -199,7 +199,7 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
 });
 // 4. CRIAR REGRA (Blindado)
 app.post('/api/regras', authenticateAdmin, async (req, res) => {
-  const { modelagem_id, condicoes, sugestao_tamanho, prioridade, pe_min, pe_max } = req.body;
+  const { modelagem_id, condicoes, sugestao_tamanho, prioridade, pe_min, pe_max, frase_sugestao } = req.body;
   if (!modelagem_id || !sugestao_tamanho) {
     return res.status(400).json({ error: 'Dados obrigatórios faltando.' });
   }
@@ -220,10 +220,11 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
       .insert([{
         modelagem_id,
         sugestao_tamanho,
-        condicoes: condicoes || [], // Garante array vazio se não vier nada
+        condicoes: condicoes || [],
         prioridade: prioridade || 0,
-        pe_min: pe_min || null, // <--- NOVO: Grava o mínimo
-        pe_max: pe_max || null  // <--- NOVO: Grava o máximo
+        pe_min: pe_min ? parseFloat(pe_min) : null,
+        pe_max: pe_max ? parseFloat(pe_max) : null,
+        frase_sugestao: frase_sugestao || null
       }])
       .select()
       .single();
@@ -375,10 +376,15 @@ app.post('/api/sugestao', async (req, res) => {
 
       // Procura onde o pé se encaixa
       for (const regra of regras) {
-        // Ex: Se pé (26.5) >= min (26.0) E pé (26.5) <= max (27.0)
         if (peCliente >= parseFloat(regra.pe_min) && peCliente <= parseFloat(regra.pe_max)) {
-          sugestaoEncontrada = regra.sugestao_tamanho;
-          break; // Achou, para o loop
+
+          // ⚠️ MUDANÇA AQUI:
+          // Guardamos o objeto completo ou as partes que interessam
+          sugestaoEncontrada = {
+            tamanho: regra.sugestao_tamanho,
+            frase: regra.frase_sugestao // <--- Pega a frase do banco
+          };
+          break;
         }
       }
 
@@ -405,9 +411,15 @@ app.post('/api/sugestao', async (req, res) => {
 
     // 3. Resposta Final
     if (sugestaoEncontrada) {
-      res.json({ sugestao: sugestaoEncontrada, tipo: tipoTabela });
-    } else {
-      res.json({ sugestao: null, message: 'Nenhum tamanho encontrado para suas medidas.' });
+      if (typeof sugestaoEncontrada === 'object') {
+        res.json({
+          sugestao: sugestaoEncontrada.tamanho,
+          frase: sugestaoEncontrada.frase, // Envia a frase pro front
+          tipo: tipoTabela
+        });
+      } else {
+        res.json({ sugestao: sugestaoEncontrada, tipo: tipoTabela });
+      }
     }
 
   } catch (error) {

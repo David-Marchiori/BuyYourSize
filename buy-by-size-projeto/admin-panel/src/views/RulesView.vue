@@ -47,7 +47,8 @@ const currentModelingType = ref('roupa');
 const newShoeRule = ref({
     sugestao_tamanho: '',
     pe_min: '',
-    pe_max: ''
+    pe_max: '',
+    frase_sugestao: ''
 });
 
 // Estado Edição Regra
@@ -106,6 +107,7 @@ const handleSaveShoe = async () => {
             sugestao_tamanho: newShoeRule.value.sugestao_tamanho,
             pe_min: newShoeRule.value.pe_min ? parseFloat(newShoeRule.value.pe_min) : null,
             pe_max: newShoeRule.value.pe_max ? parseFloat(newShoeRule.value.pe_max) : null,
+            frase_sugestao: newShoeRule.value.frase_sugestao || null,
             prioridade: 0, 
             condicoes: []
         };
@@ -320,46 +322,65 @@ onMounted(loadPageData);
 
             <div v-if="loading" class="state-box">Carregando regras...</div>
 
-            <div v-else-if="currentModelingType === 'calcado'" class="shoe-interface">
-                
-                <div class="rule-card add-shoe-card">
-                    <h3>Adicionar Novo Tamanho</h3>
-                    <div class="shoe-inputs">
-                        <div class="grp">
-                            <label>Tamanho (Etiqueta)</label>
-                            <input v-model="newShoeRule.sugestao_tamanho" placeholder="Ex: 36" class="input-std">
-                        </div>
-                        <div class="grp">
-                            <label>Pé Mínimo (cm)</label>
-                            <input type="number" step="0.1" v-model="newShoeRule.pe_min" placeholder="23.0" class="input-std">
-                        </div>
-                        <div class="grp">
-                            <label>Pé Máximo (cm)</label>
-                            <input type="number" step="0.1" v-model="newShoeRule.pe_max" placeholder="23.5" class="input-std">
-                        </div>
-                        <button class="btn-primary" @click="handleSaveShoe">
-                            <Plus :size="18"/> Adicionar
-                        </button>
-                    </div>
-                    <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
-                </div>
+<div v-else-if="currentModelingType === 'calcado'" class="shoe-interface">
+    
+    <div class="rule-card add-shoe-card">
+        <h3>Adicionar Novo Tamanho</h3>
+        
+        <div class="shoe-inputs">
+            <div class="grp">
+                <label>Tamanho</label>
+                <input v-model="newShoeRule.sugestao_tamanho" placeholder="Ex: 36" class="input-std">
+            </div>
+            <div class="grp">
+                <label>Pé Min (cm)</label>
+                <input type="number" step="0.1" v-model="newShoeRule.pe_min" placeholder="23.0" class="input-std">
+            </div>
+            <div class="grp">
+                <label>Pé Max (cm)</label>
+                <input type="number" step="0.1" v-model="newShoeRule.pe_max" placeholder="23.5" class="input-std">
+            </div>
+            
+            <div class="grp" style="flex: 2; min-width: 200px;"> 
+                <label>Feedback de Ajuste (Opcional)</label>
+                <input 
+                    v-model="newShoeRule.frase_sugestao" 
+                    placeholder="Ex: Fica bem justo, ideal para corrida" 
+                    class="input-std"
+                >
+            </div>
 
-                <div class="shoe-list">
-                    <div v-for="rule in rules" :key="rule.id" class="shoe-item">
-                        <div class="size-circle">{{ rule.sugestao_tamanho }}</div>
-                        <div class="range-info">
-                            <span class="range-label">Intervalo do Pé</span>
-                            <span class="range-val">{{ rule.pe_min }}cm <span class="arrow">→</span> {{ rule.pe_max }}cm</span>
-                        </div>
-                        <button class="btn-icon-del" @click="handleDeleteRule(rule.id)">
-                            <Trash2 :size="16"/>
-                        </button>
-                    </div>
-                    <div v-if="rules.length === 0" class="empty-shoe">
-                        Nenhum tamanho cadastrado ainda. Adicione acima.
-                    </div>
+            <button class="btn-primary" @click="handleSaveShoe">
+                <Plus :size="18"/> Adicionar
+            </button>
+        </div>
+        <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+    </div>
+
+    <div class="shoe-list">
+        <div v-for="rule in rules" :key="rule.id" class="shoe-item">
+            <div class="size-circle">{{ rule.sugestao_tamanho }}</div>
+            
+            <div class="range-info">
+                <span class="range-label">Intervalo do Pé</span>
+                <span class="range-val">{{ rule.pe_min }}cm <span class="arrow">→</span> {{ rule.pe_max }}cm</span>
+                
+                <div v-if="rule.frase_sugestao" class="phrase-preview">
+                    <span class="icon-phrase">💬</span> {{ rule.frase_sugestao }}
                 </div>
             </div>
+
+            <button class="btn-icon-del" @click="handleDeleteRule(rule.id)">
+                <Trash2 :size="16"/>
+            </button>
+        </div>
+
+        <div v-if="rules.length === 0" class="empty-shoe">
+            Nenhum tamanho cadastrado ainda. Adicione acima.
+        </div>
+    </div>
+
+</div>
 
             <div v-else>
                  <div v-if="rules.length === 0" class="state-box empty">
@@ -706,4 +727,17 @@ onMounted(loadPageData);
 .btn-icon-del:hover { color: #ef4444; }
 
 .empty-shoe { grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 40px; font-style: italic; }
+.phrase-preview {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 4px;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.icon-phrase {
+    font-style: normal;
+    font-size: 0.8rem;
+}
 </style>

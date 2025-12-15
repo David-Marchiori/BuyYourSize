@@ -131,44 +131,70 @@
 
     // --- PASSO 1 (CALÇADO): Medida do Pé ---
     function renderStepShoe() {
+        // Valores padrão para o slider (cm)
+        const minRange = 20;
+        const maxRange = 34;
+        // Se já tiver valor salvo, usa, senão usa média (26)
+        const currentVal = state.data.pe || 26;
+
         contentArea.innerHTML = `
             <div class="bbs-anim-enter">
                 <div class="bbs-header">
                     <h3 class="bbs-title">Qual o tamanho do seu pé?</h3>
-                    <p class="bbs-subtitle">Meça do calcanhar ao dedão para garantir o conforto.</p>
+                    <p class="bbs-subtitle">Arraste para definir a medida em centímetros.</p>
                 </div>
 
-                <div class="bbs-form-group" style="margin-top: 20px;">
-                     <div style="text-align:center; margin-bottom:20px; color:#ccc;">
-                        <svg viewBox="0 0 24 24" width="80" height="80" fill="currentColor"><path d="M13.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S12.4,5.5,13.5,5.5z M16.5,10.2c-0.8-0.5-2-1.3-2-2.7c0-1.7,1.3-3,3-3s3,1.3,3,3c0,2.1-1.7,4.4-4,6.3V24h-2v-9.5C14.5,12.7,15.6,11.3,16.5,10.2z M10,13c-0.2-1-0.6-2.2-1.2-3.2C8.3,9,8,8.2,8,7.5c0-1.4,1.1-2.5,2.5-2.5s2.5,1.1,2.5,2.5c0,1-0.8,2.7-2,4.5V24H9V13z"/></svg>
+                <div class="bbs-form-group" style="margin-top: 30px;">
+                     
+                     <div style="margin-bottom: 15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <label class="bbs-label" style="margin:0">Comprimento (cm)</label>
+                            <input type="number" id="inp-foot-num" class="bbs-input" value="${currentVal}" step="0.1" style="width:80px; text-align:center;">
+                        </div>
+                        
+                        <input type="range" id="inp-foot-range" min="${minRange}" max="${maxRange}" step="0.1" value="${currentVal}" style="width:100%; cursor: pointer;">
+                        
+                        <div style="display:flex; justify-content:space-between; color:#999; font-size:12px; margin-top:5px;">
+                            <span>${minRange}cm</span>
+                            <span>${maxRange}cm</span>
+                        </div>
                      </div>
 
-                    <label class="bbs-label">Comprimento do Pé</label>
-                    <div class="bbs-input-row">
-                        <input type="number" step="0.1" id="inp-foot" class="bbs-input" value="${state.data.pe}" placeholder="26.5">
-                        <span class="bbs-unit">cm</span> 
-                    </div>
+                     <div style="background:#f8f9fa; padding:10px; border-radius:8px; font-size:13px; color:#666; display:flex; gap:10px; align-items:center;">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="#666"><path d="M13.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S12.4,5.5,13.5,5.5z M16.5,10.2c-0.8-0.5-2-1.3-2-2.7c0-1.7,1.3-3,3-3s3,1.3,3,3c0,2.1-1.7,4.4-4,6.3V24h-2v-9.5C14.5,12.7,15.6,11.3,16.5,10.2z"/></svg>
+                        <span>Meça do calcanhar à ponta do dedão.</span>
+                     </div>
                 </div>
 
                 ${state.error ? `<p style="color:red; font-size:12px; margin-top:5px;">${state.error}</p>` : ''}
 
                 <div class="bbs-footer-area">
-                    <button class="bbs-btn-next" id="btn-calc-shoe">Ver Tamanho</button>
+                    <button class="bbs-btn-next" id="btn-calc-shoe">Ver Recomendação</button>
                 </div>
             </div>
         `;
 
-        document.getElementById('btn-calc-shoe').onclick = () => {
-            const val = document.getElementById('inp-foot').value;
-            if (!val) { state.error = "Informe a medida em cm."; render(); return; }
+        // Sincronização Range <-> Number
+        const range = document.getElementById('inp-foot-range');
+        const num = document.getElementById('inp-foot-num');
 
+        range.oninput = (e) => {
+            num.value = e.target.value;
+            state.data.pe = e.target.value;
+        };
+        num.oninput = (e) => {
+            range.value = e.target.value;
+            state.data.pe = e.target.value;
+        };
+
+        document.getElementById('btn-calc-shoe').onclick = () => {
+            const val = num.value;
+            if (!val || val < 10) { state.error = "Medida inválida."; render(); return; }
             state.data.pe = val;
             state.error = '';
-            // Sapato PULA o step 2 e vai direto pro submit
             submitData();
         };
     }
-
     // --- PASSO 2 (ROUPA): Ajuste Fino ---
     function renderStep2() {
         // ... (Mantém sua lógica atual de sliders Busto/Cintura/Quadril) ...
@@ -234,34 +260,39 @@
 
     // --- PASSO 4: RESULTADO (Inteligente) ---
     function renderResult() {
+        // O Backend agora retorna { sugestao: '38', frase: 'Fica justo', ... }
+        // Mas guardamos tudo em state.result ou state.resultPhrase
+
+        // Ajuste no submitData para salvar a frase no state:
+        // if (json.sugestao) { state.result = json.sugestao; state.resultPhrase = json.frase; ... }
+
         const hasResult = !!state.result;
         const size = state.result || '?';
+        const phrase = state.resultPhrase || (state.type === 'calcado' ? 'Ideal para o seu pé' : 'Medida compatível');
+
         let contentHTML = '';
 
         if (hasResult) {
             contentHTML = `
                 <div class="bbs-header"><h3 class="bbs-title">Sua Recomendação</h3></div>
                 <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    
                     <div class="bbs-size-box">
                         ${size}
                         <div class="bbs-check-badge"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
                     </div>
-                    <p style="font-weight:600; margin-bottom:20px;">${size} é a melhor opção</p>
                     
-                    ${state.type === 'calcado' ?
-                    `<div class="bbs-match-info" style="justify-content:center">Ideal para o comprimento do seu pé</div>` :
-                    `<div class="bbs-match-info">Medida compatível</div>`
-                }
+                    <p style="font-weight:700; font-size:1.1rem; margin-bottom:5px;">${size} é a melhor opção</p>
+                    
+                    <div class="bbs-match-info" style="background:#f0f9ff; color:#0369a1; padding:8px 16px; border-radius:20px; font-weight:600; font-size:0.9rem;">
+                        ${phrase}
+                    </div>
+
                 </div>
             `;
         } else {
-            contentHTML = `
-                <div class="bbs-header"><h3 class="bbs-title">Ops!</h3></div>
-                <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                    <div class="bbs-size-box bbs-warning-box">?</div>
-                    <p style="text-align:center; color:#666; margin-top:10px;">${state.error || "Não encontramos um tamanho ideal."}</p>
-                </div>
-            `;
+            // ... (código de erro igual ao anterior) ...
+            contentHTML = `<div class="bbs-header"><h3 class="bbs-title">Ops!</h3></div><p>${state.error || "Sem tamanho encontrado."}</p>`;
         }
 
         contentArea.innerHTML = `
@@ -294,13 +325,12 @@
                 produto_id: productId,
                 store_id: config.storeId,
                 medidas: {
-                    // Manda tudo, o backend decide o que usar baseado no tipo
                     altura: alturaMetros || 0,
                     peso: parseFloat(state.data.peso) || 0,
                     busto: parseFloat(state.data.busto) || 0,
                     cintura: parseFloat(state.data.cintura) || 0,
                     quadril: parseFloat(state.data.quadril) || 0,
-                    pe: parseFloat(state.data.pe) || 0 // <--- Medida do pé
+                    pe: parseFloat(state.data.pe) || 0
                 }
             };
 
@@ -314,14 +344,20 @@
 
             if (json.sugestao) {
                 state.result = json.sugestao;
+
+                // ⚠️ AQUI ESTÁ A MUDANÇA: Captura a frase vinda do backend
+                state.resultPhrase = json.frase;
+
                 state.error = '';
             } else {
                 state.result = null;
+                state.resultPhrase = null;
                 state.error = json.message || "Sem resultado.";
             }
         } catch (err) {
             state.error = "Erro de conexão.";
             state.result = null;
+            state.resultPhrase = null;
         } finally {
             state.step = 4;
             state.loading = false;
