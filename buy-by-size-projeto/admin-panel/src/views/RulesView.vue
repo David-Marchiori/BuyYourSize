@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { 
     getModelingRules, saveRule, deleteRule, getModelingDetails, 
     getCatalogProducts, linkProductsBatch, unlinkProductsBatch,
-    getProductsByModeling 
+    getProductsByModeling, deleteModeling
 } from '@/api/apiService';
 import { 
   ArrowLeft, Plus, Save, Trash2, Edit2, X, 
@@ -233,6 +233,25 @@ const handleDeleteRule = async (ruleId) => {
     if (!confirm('Excluir esta regra?')) return;
     try { await deleteRule(ruleId); rules.value = await getModelingRules(modelingId); } catch (err) { alert('Erro ao excluir.'); }
 };
+
+const handleDeleteModeling = async () => {
+    if (!confirm('ATENÇÃO: Deseja realmente excluir esta modelagem? Todos os produtos vinculados serão desvinculados.')) {
+        return;
+    }
+    
+    loading.value = true;
+    try {
+        await deleteModeling(modelingId);
+        // Se a exclusão for bem-sucedida, volta para a lista principal
+        router.push({ name: 'modelings' }); 
+    } catch (err) {
+        alert('Erro ao excluir: verifique o console.');
+        console.error(err);
+    } finally {
+        loading.value = false;
+    }
+};
+
 const getFieldLabel = (val) => FIELDS.find(f => f.value === val)?.label || val;
 const getOperatorLabel = (val) => { const op = OPERATORS.find(o => o.value === val); return op ? op.label.split('(')[0].trim() : val; };
 
@@ -260,6 +279,9 @@ onMounted(loadPageData);
           <button v-if="activeTab === 'rules' && currentModelingType !== 'calcado'" class="btn-primary" @click="openCreateForm" :disabled="showForm">
             <Plus :size="18" /> Nova Regra
           </button>
+          <button class="btn-danger" @click="handleDeleteModeling">
+             <Trash2 :size="18"/> Excluir Modelagem
+        </button>
       </div>
     </div>
 

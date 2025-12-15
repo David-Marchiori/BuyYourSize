@@ -659,6 +659,52 @@ app.post('/api/modelagens', authenticateAdmin, async (req, res) => {
   }
 });
 
+app.delete('/api/modelagens/:id', authenticateAdmin, async (req, res) => {
+  const { id: modelagemId } = req.params;
+
+  try {
+    // 1. VERIFICAÇÃO DE PROPRIEDADE (Segurança)
+    const { data: modelagem, error: checkError } = await supabase
+      .from('modelagens')
+      .select('id, store_id')
+      .eq('id', modelagemId)
+      .eq('store_id', req.storeId) // Somente o dono da loja pode apagar
+      .single();
+
+    if (checkError || !modelagem) {
+      return res.status(404).json({ error: 'Modelagem não encontrada ou acesso negado.' });
+    }
+
+    // 2. DESVINCULAR PRODUTOS ASSOCIADOS (CRÍTICO)
+    // Setar modelagem_id para NULL nos produtos desta loja
+    await supabase
+      .from('produtos_tamanhos')
+      .update({ modelagem_id: null })
+      .eq('modelagem_id', modelagemId)
+      .eq('store_id', req.storeId);
+
+    // 3. EXCLUIR REGRAS ASSOCIADAS
+    await supabase
+      .from('regras_detalhes')
+      .delete()
+      .eq('modelagem_id', modelagemId);
+
+    // 4. EXCLUIR A MODELAGEM MESTRE
+    const { error: deleteError } = await supabase
+      .from('modelagens')
+      .delete()
+      .eq('id', modelagemId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({ success: true, message: 'Modelagem e regras excluídas com sucesso.' });
+
+  } catch (err) {
+    console.error('Erro ao excluir modelagem:', err);
+    res.status(500).json({ error: 'Erro interno ao excluir modelagem.' });
+  }
+});
+
 // 15. VINCULAR PRODUTO A UMA MODELAGEM
 app.put('/api/produtos/:id/vincular', authenticateAdmin, async (req, res) => {
   const { id } = req.params; // ID do Produto

@@ -229,6 +229,17 @@ export const createModeling = async (nome, tipo) => {
   }
 };
 
+// Exclui uma modelagem completa
+export const deleteModeling = async (modelagemId) => {
+  try {
+    const response = await apiClient.delete(`/modelagens/${modelagemId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao excluir modelagem:', error);
+    throw error;
+  }
+};
+
 // Vincula um produto a uma modelagem
 export const linkProductToModeling = async (productId, modelingId) => {
   try {
