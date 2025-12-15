@@ -114,9 +114,6 @@ export const deleteRule = async (ruleId) => {
   }
 };
 
-// --- CONFIGURAÇÕES DA LOJA E LOGS ---
-// (Estas funções agora chamam a API, não o Supabase direto)
-
 /**
  * GET /api/store-config
  * Retorna: { xml_url: '...', update_frequency: 24 }
@@ -172,6 +169,18 @@ export const getLastSyncLog = async () => {
     return null;
   }
 };
+
+export const getSyncLogs = async () => {
+    try {
+        const response = await apiClient.get('/sync-logs');
+        // O backend retorna { logs: [] }
+        return response.data.logs; 
+    } catch (error) {
+        console.error('Erro ao buscar logs:', error);
+        throw error;
+    }
+};
+
 
 /**
  * GET /api/regras/stats
