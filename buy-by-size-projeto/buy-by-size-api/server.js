@@ -199,7 +199,16 @@ app.post('/api/produtos/sync-xml', authenticateAdmin, async (req, res) => {
 });
 // 4. CRIAR REGRA (Blindado)
 app.post('/api/regras', authenticateAdmin, async (req, res) => {
-  const { modelagem_id, condicoes, sugestao_tamanho, prioridade, pe_min, pe_max, frase_sugestao } = req.body;
+  const {
+    modelagem_id,
+    condicoes,
+    sugestao_tamanho,
+    prioridade,
+    pe_min,
+    pe_max,
+    frase_sugestao,
+    frases_sugestao
+  } = req.body;
   if (!modelagem_id || !sugestao_tamanho) {
     return res.status(400).json({ error: 'Dados obrigatórios faltando.' });
   }
@@ -224,13 +233,13 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
         prioridade: prioridade || 0,
         pe_min: pe_min ? parseFloat(pe_min) : null,
         pe_max: pe_max ? parseFloat(pe_max) : null,
-        frase_sugestao: frase_sugestao || null
+        frase_sugestao: serializePhrases(frases_sugestao ?? frase_sugestao)
       }])
       .select()
       .single();
 
     if (error) throw error;
-    res.status(201).json(data);
+    res.status(201).json(mapRuleWithPhrases(data));
 
   } catch (err) {
     console.error("Erro ao criar regra:", err);
@@ -260,7 +269,7 @@ app.get('/api/regras', authenticateAdmin, async (req, res) => {
       .order('pe_min', { ascending: true, nullsFirst: false })
       .order('prioridade', { ascending: false }); // Note que prioridade geralmente é descrescente (maior ganha)
 
-    res.status(200).json({ regras });
+    res.status(200).json({ regras: (regras || []).map(mapRuleWithPhrases) });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar regras.' });
   }
@@ -269,13 +278,30 @@ app.get('/api/regras', authenticateAdmin, async (req, res) => {
 // 6. ROTA PUT: ATUALIZAR REGRA (Mantém igual, pois atualiza pelo ID da regra)
 app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
   const { id } = req.params;
-  const { condicoes, sugestao_tamanho, prioridade } = req.body;
+  const {
+    condicoes,
+    sugestao_tamanho,
+    prioridade,
+    pe_min,
+    pe_max,
+    frase_sugestao,
+    frases_sugestao
+  } = req.body;
 
   try {
     const updatePayload = {};
     if (condicoes) updatePayload.condicoes = condicoes;
     if (sugestao_tamanho) updatePayload.sugestao_tamanho = sugestao_tamanho;
     if (prioridade !== undefined) updatePayload.prioridade = prioridade;
+    if (pe_min !== undefined) {
+      updatePayload.pe_min = pe_min === null || pe_min === '' ? null : parseFloat(pe_min);
+    }
+    if (pe_max !== undefined) {
+      updatePayload.pe_max = pe_max === null || pe_max === '' ? null : parseFloat(pe_max);
+    }
+    if (frases_sugestao !== undefined || frase_sugestao !== undefined) {
+      updatePayload.frase_sugestao = serializePhrases(frases_sugestao ?? frase_sugestao);
+    }
 
     const { error: updateError, data: updateData } = await supabase
       .from('regras_detalhes')
@@ -288,7 +314,7 @@ app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Regra atualizada!',
-      regra: updateData[0]
+      regra: mapRuleWithPhrases(updateData[0])
     });
 
   } catch (error) {
@@ -321,6 +347,52 @@ const evaluateCondition = (medidaCliente, operador, valorRegra) => {
     case '!=': return medidaCliente != valorRegra;
     default: return false;
   }
+};
+
+const sanitizePhraseArray = (list = []) =>
+  list
+    .map(item => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+
+const serializePhrases = (input) => {
+  if (Array.isArray(input)) {
+    const cleaned = sanitizePhraseArray(input);
+    return cleaned.length ? JSON.stringify(cleaned) : null;
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  return null;
+};
+
+const parsePhraseList = (raw) => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return sanitizePhraseArray(raw);
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return sanitizePhraseArray(parsed);
+    } catch (err) {
+      // Continua para tratar como texto livre
+    }
+
+    return sanitizePhraseArray(trimmed.split(/\r?\n/));
+  }
+
+  return [];
+};
+
+const mapRuleWithPhrases = (rule) => {
+  if (!rule) return rule;
+  return {
+    ...rule,
+    frases_sugestao: parsePhraseList(rule.frase_sugestao)
+  };
 };
 
 // 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO (Blindada por store_id)
@@ -382,7 +454,7 @@ app.post('/api/sugestao', async (req, res) => {
           // Guardamos o objeto completo ou as partes que interessam
           sugestaoEncontrada = {
             tamanho: regra.sugestao_tamanho,
-            frase: regra.frase_sugestao // <--- Pega a frase do banco
+            phrases: parsePhraseList(regra.frase_sugestao)
           };
           break;
         }
@@ -403,7 +475,10 @@ app.post('/api/sugestao', async (req, res) => {
           }
         }
         if (todasVerdadeiras) {
-          sugestaoEncontrada = regra.sugestao_tamanho;
+          sugestaoEncontrada = {
+            tamanho: regra.sugestao_tamanho,
+            phrases: parsePhraseList(regra.frase_sugestao)
+          };
           break;
         }
       }
@@ -411,15 +486,15 @@ app.post('/api/sugestao', async (req, res) => {
 
     // 3. Resposta Final
     if (sugestaoEncontrada) {
-      if (typeof sugestaoEncontrada === 'object') {
-        res.json({
-          sugestao: sugestaoEncontrada.tamanho,
-          frase: sugestaoEncontrada.frase, // Envia a frase pro front
-          tipo: tipoTabela
-        });
-      } else {
-        res.json({ sugestao: sugestaoEncontrada, tipo: tipoTabela });
-      }
+      const phrases = sugestaoEncontrada.phrases || [];
+      res.json({
+        sugestao: sugestaoEncontrada.tamanho,
+        frase: phrases[0] || null,
+        frases: phrases,
+        tipo: tipoTabela
+      });
+    } else {
+      res.status(200).json({ sugestao: null, message: 'Nenhuma regra encontrada.' });
     }
 
   } catch (error) {
@@ -584,7 +659,7 @@ app.get('/api/regras/:modelagemId', authenticateAdmin, async (req, res) => {
       .order('prioridade', { ascending: true });
 
     if (error) throw error;
-    res.json(data);
+    res.json((data || []).map(mapRuleWithPhrases));
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar regras.' });
   }

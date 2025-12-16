@@ -1,65 +1,70 @@
 :root {
-    --bbs-primary: #333333;
+    --bbs-primary: #111827;
+    --bbs-secondary: #6366f1;
     --bbs-bg: #ffffff;
-    --bbs-border: #e0e0e0;
-    --bbs-text: #333;
-    --bbs-radius: 4px;
-    --bbs-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --bbs-border: #e2e8f0;
+    --bbs-text: #1f2933;
+    --bbs-radius: 8px;
+    --bbs-muted: #64748b;
+    --bbs-success: #0f172a;
 }
 
-/* OBRIGATÓRIO: Esconde o modal por padrão */
 .bbs-modal-overlay {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(5px);
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
     z-index: 999999;
     align-items: center;
     justify-content: center;
 }
 
-/* Quando JS adiciona .open, ele aparece */
 .bbs-modal-overlay.open {
     display: flex;
 }
 
-/* --- CARD HORIZONTAL --- */
 .bbs-modal-card {
     background-color: var(--bbs-bg);
-    width: 800px;
-    max-width: 95vw;
-    height: 500px;
-    max-height: 90vh;
-    border-radius: var(--bbs-radius);
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+    width: min(920px, 96vw);
+    min-height: 480px;
+    border-radius: 16px;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);
     display: flex;
-    flex-direction: row;
     overflow: hidden;
-    font-family: var(--bbs-font-family);
+    font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
     position: relative;
 }
 
-/* Esquerda (Imagem) */
 .bbs-col-image {
     width: 40%;
-    background-color: #f4f4f4;
+    background-color: #f8fafc;
     background-size: cover;
     background-position: center;
 }
 
-/* Direita (Conteúdo) */
 .bbs-col-content {
     width: 60%;
     padding: 40px;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
-/* --- ELEMENTOS --- */
+.bbs-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.08);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--bbs-muted);
+    font-size: 20px;
+    cursor: pointer;
+}
+
 .bbs-header {
     margin-bottom: 20px;
 }
@@ -67,60 +72,48 @@
 .bbs-title {
     font-size: 22px;
     font-weight: 700;
-    margin: 0 0 5px 0;
-    color: #000;
+    color: var(--bbs-text);
+    margin: 0;
 }
 
 .bbs-subtitle {
     font-size: 14px;
-    color: #666;
-    margin: 0;
+    color: var(--bbs-muted);
+    margin: 4px 0 0;
 }
 
-.bbs-close-btn {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #999;
-    z-index: 10;
-}
-
-/* Botões Gênero */
 .bbs-gender-toggle {
     display: flex;
     gap: 10px;
-    margin-bottom: 25px;
+    margin-bottom: 24px;
 }
 
 .bbs-gender-btn {
     flex: 1;
     padding: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--bbs-border);
+    border-radius: var(--bbs-radius);
     background: #fff;
     cursor: pointer;
-    border-radius: var(--bbs-radius);
+    font-weight: 600;
+    color: var(--bbs-text);
 }
 
 .bbs-gender-btn.active {
-    background: #f0f0f0;
-    border-color: #999;
-    font-weight: bold;
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #4338ca;
 }
 
-/* Inputs */
 .bbs-form-group {
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 
 .bbs-label {
-    display: block;
     font-size: 13px;
     font-weight: 600;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
+    color: var(--bbs-text);
 }
 
 .bbs-input-row {
@@ -130,23 +123,24 @@
 }
 
 .bbs-input {
-    width: 100px;
-    padding: 10px;
-    border: 1px solid #999;
+    width: 120px;
+    padding: 10px 12px;
+    border: 1px solid var(--bbs-border);
     border-radius: var(--bbs-radius);
+    font-size: 15px;
 }
 
 .bbs-unit {
     font-size: 14px;
-    color: #666;
+    color: var(--bbs-muted);
 }
 
-/* Footer */
 .bbs-footer-area {
     margin-top: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
 }
 
 .bbs-dots {
@@ -157,56 +151,312 @@
 .bbs-dot {
     width: 8px;
     height: 8px;
-    background: #ddd;
     border-radius: 50%;
+    background: var(--bbs-border);
 }
 
 .bbs-dot.active {
-    background: #555;
+    background: var(--bbs-secondary);
 }
 
 .bbs-btn-next {
-    background: #777;
-    color: white;
+    background: var(--bbs-secondary);
+    color: #fff;
     border: none;
-    padding: 10px 25px;
-    font-weight: bold;
+    padding: 11px 26px;
     border-radius: var(--bbs-radius);
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.2s ease;
 }
 
 .bbs-btn-next:hover {
-    background: #555;
+    background: #4f46e5;
 }
 
-/* BOTÃO GATILHO NA LOJA */
+.bbs-btn-outline {
+    border: 1px solid var(--bbs-border);
+    background: transparent;
+    color: var(--bbs-text);
+    padding: 11px 24px;
+    border-radius: var(--bbs-radius);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.bbs-error-text {
+    color: #dc2626;
+    font-size: 13px;
+    margin: 8px 0 0;
+}
+
 #bbs-trigger-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 12px;
     width: 100%;
-    padding: 12px;
+    border: 1px solid var(--bbs-text);
     background: transparent;
-    border: 1px solid #333;
-    color: #333;
+    padding: 12px;
     text-transform: uppercase;
-    font-weight: bold;
+    font-weight: 700;
     cursor: pointer;
     margin-top: 10px;
 }
 
 #bbs-trigger-btn:hover {
-    background: #333;
+    background: var(--bbs-text);
     color: #fff;
 }
 
-/* Mobile */
+.bbs-shoe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+    margin-bottom: 16px;
+}
+
+.bbs-shoe-visual {
+    background: #f8fafc;
+    border: 1px solid var(--bbs-border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.bbs-foot-hero {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.bbs-foot-value {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--bbs-secondary);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.bbs-tip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--bbs-muted);
+}
+
+.bbs-tip-list strong {
+    color: var(--bbs-text);
+}
+
+.bbs-shoe-form {
+    border: 1px solid var(--bbs-border);
+    border-radius: 16px;
+    padding: 20px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.bbs-range-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bbs-range-scale,
+.bbs-range-markers {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--bbs-muted);
+}
+
+.bbs-range-control {
+    width: 100%;
+    accent-color: var(--bbs-secondary);
+}
+
+.bbs-hint-card {
+    display: flex;
+    gap: 10px;
+    border: 1px dashed var(--bbs-border);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 13px;
+    color: var(--bbs-muted);
+}
+
+.bbs-slider-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.bbs-slider-item {
+    border: 1px solid var(--bbs-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+.bbs-slider-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.bbs-mini-input {
+    width: 60px;
+    text-align: center;
+    border: 1px solid var(--bbs-border);
+    border-radius: var(--bbs-radius);
+    padding: 6px;
+}
+
+.bbs-actions-row {
+    display: flex;
+    gap: 10px;
+}
+
+.bbs-actions-row .bbs-btn-next {
+    flex: 1;
+}
+
+.bbs-loading-state {
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.bbs-loader {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid var(--bbs-secondary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.bbs-result-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.bbs-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.bbs-result-main {
+    text-align: center;
+}
+
+.bbs-result-label {
+    margin-top: 8px;
+    font-weight: 600;
+    color: var(--bbs-text);
+}
+
+.bbs-feedback-stack {
+    border: 1px solid var(--bbs-border);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #f8fafc;
+}
+
+.bbs-feedback-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--bbs-text);
+}
+
+.bbs-result-footer {
+    justify-content: flex-end;
+}
+
+.bbs-size-box {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+    border-radius: 16px;
+    border: 1px solid var(--bbs-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--bbs-text);
+    position: relative;
+    background: #fff;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.15);
+}
+
+.bbs-check-badge {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(16, 185, 129, 0.35);
+}
+
+.bbs-anim-enter {
+    animation: bbsFadeSlideUp 0.4s ease forwards;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+@keyframes bbsFadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @media (max-width: 768px) {
     .bbs-modal-card {
         flex-direction: column;
-        height: auto;
-        width: 95%;
+        width: 95vw;
     }
 
     .bbs-col-image {
@@ -215,163 +465,10 @@
 
     .bbs-col-content {
         width: 100%;
-        padding: 20px;
-    }
-}
-
-/* --- ÍCONE DE CARREGAMENTO (Spinner) --- */
-.bbs-loader {
-    width: 50px;
-    height: 50px;
-    border: 4px solid #f3f3f3;
-    /* Cinza claro */
-    border-top: 4px solid var(--bbs-primary);
-    /* Cor principal (preto) */
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
+        padding: 24px;
     }
 
-    100% {
-        transform: rotate(360deg);
+    .bbs-shoe-grid {
+        grid-template-columns: 1fr;
     }
-}
-
-/* --- ANIMAÇÃO DE TRANSIÇÃO (Suave e Elegante) --- */
-@keyframes bbsFadeSlideUp {
-    0% {
-        opacity: 0;
-        transform: translateY(15px);
-        /* Começa um pouco abaixo */
-    }
-
-    100% {
-        opacity: 1;
-        transform: translateY(0);
-        /* Termina na posição original */
-    }
-}
-
-/* Classe utilitária que vamos usar no JS */
-.bbs-anim-enter {
-    animation: bbsFadeSlideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-    /* O cubic-bezier(0.2, 0.8, 0.2, 1) é o segredo da elegância: 
-     começa rápido e desacelera suavemente no final */
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-/* --- TELA DE RESULTADO (Vibe de Sucesso) --- */
-
-/* O Container do Tamanho (Quadrado com Sombra) */
-.bbs-size-box {
-    width: 110px;
-    height: 110px;
-    background-color: #fff;
-    border-radius: 12px;
-    /* Cantos levemente arredondados, mas quadrado */
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-    /* Sombra elegante */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    font-weight: 800;
-    color: #333;
-    margin: 10px auto 20px auto;
-    border: 1px solid #f0f0f0;
-    position: relative;
-}
-
-/* O Ícone de Check Verde Flutuante */
-.bbs-check-badge {
-    position: absolute;
-    top: -15px;
-    right: -15px;
-    width: 36px;
-    height: 36px;
-    background-color: #27ae60;
-    /* Verde Sucesso */
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4);
-    animation: bbsPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.2s forwards;
-    opacity: 0;
-    transform: scale(0);
-}
-
-/* Texto de Feedback Verde */
-.bbs-match-info {
-    background-color: #eafaf1;
-    /* Fundo verde bem clarinho */
-    color: #219653;
-    /* Texto verde escuro */
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    width: 100%;
-}
-
-.bbs-match-info svg {
-    fill: currentColor;
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-}
-
-/* Botão Secundário (Editar) */
-.bbs-btn-outline {
-    background: transparent;
-    border: 1px solid #ccc;
-    color: #666;
-    padding: 12px 20px;
-    border-radius: var(--bbs-radius);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.bbs-btn-outline:hover {
-    border-color: #333;
-    color: #333;
-}
-
-/* Animação do Check */
-@keyframes bbsPopIn {
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Caixa com borda laranja */
-.bbs-warning-box {
-    border-color: #f39c12;
-    color: #f39c12;
-}
-
-/* Ícone de exclamação laranja */
-.bbs-warning-badge {
-    background-color: #f39c12;
-    box-shadow: 0 4px 10px rgba(243, 156, 18, 0.4);
-}
-
-/* Faixa de texto laranja claro */
-.bbs-warning-info {
-    background-color: #fcf3cf;
-    color: #d68910;
 }

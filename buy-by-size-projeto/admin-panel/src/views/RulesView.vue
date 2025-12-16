@@ -44,12 +44,14 @@ const loading = ref(true);
 
 const isShoeTable = computed(() => modelingName.value.includes('(Calçado)') || (currentModelingType.value === 'calcado'));
 const currentModelingType = ref('roupa');
-const newShoeRule = ref({
+const createEmptyShoeRule = () => ({
     sugestao_tamanho: '',
     pe_min: '',
     pe_max: '',
-    frase_sugestao: ''
+    frases: ['']
 });
+
+const newShoeRule = ref(createEmptyShoeRule());
 
 // Estado Edição Regra
 const showForm = ref(false); 
@@ -95,34 +97,51 @@ const loadPageData = async () => {
     }
 };
 
+const sanitizePhraseList = (list = []) => list
+    .map(phrase => typeof phrase === 'string' ? phrase.trim() : '')
+    .filter(Boolean);
+
+const addShoePhrase = () => {
+    newShoeRule.value.frases.push('');
+};
+
+const removeShoePhrase = (index) => {
+    if (newShoeRule.value.frases.length === 1) {
+        newShoeRule.value.frases[0] = '';
+        return;
+    }
+    newShoeRule.value.frases.splice(index, 1);
+};
+
 const handleSaveShoe = async () => {
     errorMessage.value = '';
     if (!newShoeRule.value.sugestao_tamanho || !newShoeRule.value.pe_min || !newShoeRule.value.pe_max) {
-        return errorMessage.value = "Preencha tamanho, mínimo e máximo.";
+        return errorMessage.value = "Preencha tamanho, m¡nimo e m ximo.";
     }
 
     try {
+        const feedbacks = sanitizePhraseList(newShoeRule.value.frases || []);
         const payload = {
             modelagem_id: modelingId,
             sugestao_tamanho: newShoeRule.value.sugestao_tamanho,
             pe_min: newShoeRule.value.pe_min ? parseFloat(newShoeRule.value.pe_min) : null,
             pe_max: newShoeRule.value.pe_max ? parseFloat(newShoeRule.value.pe_max) : null,
-            frase_sugestao: newShoeRule.value.frase_sugestao || null,
+            frases_sugestao: feedbacks,
             prioridade: 0, 
             condicoes: []
         };
 
         await saveRule(payload);
-        message.value = "Tamanho de calçado adicionado!";
+        message.value = "Tamanho de cal‡ado adicionado!";
         
         // Limpar e Recarregar
-        newShoeRule.value = { sugestao_tamanho: '', pe_min: '', pe_max: '' };
+        newShoeRule.value = createEmptyShoeRule();
         rules.value = await getModelingRules(modelingId);
         
         setTimeout(() => message.value = '', 2000);
 
     } catch (err) {
-        errorMessage.value = "Erro ao salvar calçado.";
+        errorMessage.value = "Erro ao salvar cal‡ado.";
     }
 };
 
@@ -341,13 +360,32 @@ onMounted(loadPageData);
                 <input type="number" step="0.1" v-model="newShoeRule.pe_max" placeholder="23.5" class="input-std">
             </div>
             
-            <div class="grp" style="flex: 2; min-width: 200px;"> 
-                <label>Feedback de Ajuste (Opcional)</label>
-                <input 
-                    v-model="newShoeRule.frase_sugestao" 
-                    placeholder="Ex: Fica bem justo, ideal para corrida" 
-                    class="input-std"
-                >
+            <div class="grp feedback-column"> 
+                <label>Feedbacks de Ajuste (Opcional)</label>
+                <div class="phrase-inputs">
+                    <div 
+                        v-for="(phrase, index) in newShoeRule.frases" 
+                        :key="`phrase-${index}`" 
+                        class="phrase-row"
+                    >
+                        <input 
+                            v-model="newShoeRule.frases[index]" 
+                            placeholder="Ex: Fica bem justo, ideal para corrida" 
+                            class="input-std"
+                        >
+                        <button 
+                            type="button" 
+                            class="btn-remove-phrase" 
+                            @click="removeShoePhrase(index)"
+                            :disabled="newShoeRule.frases.length === 1"
+                        >
+                            <Trash2 :size="14"/>
+                        </button>
+                    </div>
+                    <button type="button" class="btn-chip" @click="addShoePhrase">
+                        <Plus :size="14"/> Adicionar feedback
+                    </button>
+                </div>
             </div>
 
             <button class="btn-primary" @click="handleSaveShoe">
@@ -365,8 +403,14 @@ onMounted(loadPageData);
                 <span class="range-label">Intervalo do Pé</span>
                 <span class="range-val">{{ rule.pe_min }}cm <span class="arrow">→</span> {{ rule.pe_max }}cm</span>
                 
-                <div v-if="rule.frase_sugestao" class="phrase-preview">
-                    <span class="icon-phrase">💬</span> {{ rule.frase_sugestao }}
+                <div v-if="rule.frases_sugestao && rule.frases_sugestao.length" class="phrase-preview">
+                    <div 
+                        v-for="(phrase, idx) in rule.frases_sugestao" 
+                        :key="`phrase-pill-${rule.id}-${idx}`" 
+                        class="phrase-pill"
+                    >
+                        <span class="icon-phrase">??</span> {{ phrase }}
+                    </div>
                 </div>
             </div>
 
@@ -693,10 +737,40 @@ onMounted(loadPageData);
 .add-shoe-card { padding: 20px; background: #f8fafc; border: 1px dashed #cbd5e1; }
 .add-shoe-card h3 { margin-top: 0; font-size: 1rem; color: #475569; margin-bottom: 15px; }
 
-.shoe-inputs { display: flex; gap: 16px; align-items: flex-end; }
+.shoe-inputs { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
 .grp { flex: 1; }
 .grp label { display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 6px; }
 .input-std { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 600; }
+.feedback-column { flex: 2; min-width: 240px; }
+.phrase-inputs { display: flex; flex-direction: column; gap: 8px; }
+.phrase-row { display: flex; gap: 8px; align-items: center; }
+.btn-remove-phrase {
+    background: none;
+    border: 1px solid #e2e8f0;
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-remove-phrase:hover:not(:disabled) { border-color: #fca5a5; color: #ef4444; }
+.btn-remove-phrase:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-chip {
+    border: 1px dashed #94a3b8;
+    background: white;
+    color: #475569;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+}
+.btn-chip:hover { border-color: #f97316; color: #c2410c; }
 
 .error-text { color: #dc2626; font-size: 0.9rem; margin-top: 10px; }
 
@@ -728,16 +802,28 @@ onMounted(loadPageData);
 
 .empty-shoe { grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 40px; font-style: italic; }
 .phrase-preview {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin-top: 4px;
-    font-style: italic;
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+.phrase-pill {
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #475569;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 4px 10px;
 }
 .icon-phrase {
     font-style: normal;
     font-size: 0.8rem;
 }
 </style>
+
+
+
+
+
