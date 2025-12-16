@@ -304,11 +304,12 @@
         const phrases = state.resultPhrases && state.resultPhrases.length
             ? state.resultPhrases
             : [state.type === 'calcado' ? 'Ideal para o seu pé' : 'Medida compatível'];
+        const [mainPhrase, ...extraPhrases] = phrases;
 
         let body = '';
 
         if (hasResult) {
-            const feedbackList = phrases.map(text => `
+            const feedbackList = extraPhrases.map(text => `
                 <div class="bbs-feedback-card">
                     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#0f172a" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                     <span>${text}</span>
@@ -326,11 +327,12 @@
                             ${size}
                             <div class="bbs-check-badge"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="#fff"/></svg></div>
                         </div>
-                        <p class="bbs-result-label">${size} é a melhor escolha agora.</p>
+                        <p class="bbs-result-label">${mainPhrase || `${size} é a melhor escolha agora.`}</p>
                     </div>
-                    <div class="bbs-feedback-stack">
+                    ${extraPhrases.length ? `<div class="bbs-feedback-stack">
+                        <div class="bbs-subtitle" style="margin-bottom:8px;font-weight:600;color:#0f172a;">Outros feedbacks</div>
                         ${feedbackList}
-                    </div>
+                    </div>` : ''}
                 </div>
             `;
         } else {
