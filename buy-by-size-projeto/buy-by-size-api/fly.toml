@@ -1,12 +1,10 @@
-# fly.toml app configuration file generated for buy-by-size-api on 2025-12-08T03:12:28Z
+# fly.toml app configuration file generated for buy-by-size-api on 2025-12-15T22:28:26-03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'buy-by-size-api'
 primary_region = 'iad'
-
-[build]
 
 [http_service]
   internal_port = 3000

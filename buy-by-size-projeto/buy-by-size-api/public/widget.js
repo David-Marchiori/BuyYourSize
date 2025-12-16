@@ -27,7 +27,8 @@
         result: null,
         resultPhrases: [],
         loading: false,
-        error: ''
+        error: '',
+        showGuide: false
     };
 
     const baseHTML = `
@@ -143,8 +144,8 @@
         contentArea.innerHTML = `
             <div class="bbs-anim-enter">
                 <div class="bbs-header">
-                    <h3 class="bbs-title">Qual o tamanho do seu pé?</h3>
-                    <p class="bbs-subtitle">Meça do calcanhar à ponta do dedão para descobrir o ajuste perfeito.</p>
+                    <h3 class="bbs-title">Qual o tamanho do seu p‚?</h3>
+                    <p class="bbs-subtitle">Me‡a do calcanhar … ponta do dedÆo para descobrir o ajuste perfeito.</p>
                 </div>
 
                 <div class="bbs-shoe-grid">
@@ -158,14 +159,14 @@
                         </div>
                         <ul class="bbs-tip-list">
                             <li><strong>Encoste o calcanhar</strong> em uma parede para alinhar.</li>
-                            <li><strong>Marque o dedão</strong> em uma folha e meça a distância.</li>
-                            <li><strong>Repita no fim do dia</strong> quando o pé está mais dilatado.</li>
+                            <li><strong>Marque o dedÆo</strong> em uma folha e me‡a a distƒncia.</li>
+                            <li><strong>Repita no fim do dia</strong> quando o p‚ est  mais dilatado.</li>
                         </ul>
                     </div>
 
                     <div class="bbs-shoe-form">
                         <div class="bbs-form-group">
-                            <label class="bbs-label">Comprimento do pé</label>
+                            <label class="bbs-label">Comprimento do p‚</label>
                             <div class="bbs-input-row">
                                 <input type="number" id="inp-foot-num" class="bbs-input" value="${currentVal}" step="0.1" min="${minRange}" max="${maxRange}">
                                 <span class="bbs-unit">cm</span>
@@ -187,8 +188,8 @@
                         <div class="bbs-hint-card">
                             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#0f172a" d="M3 5h18v2H3V5zm2 6h14v2H5v-2zm4 6h6v2H9v-2z"/></svg>
                             <div>
-                                <strong>Dica rápida</strong>
-                                <p>Meça com o pé totalmente apoiado para garantir precisão.</p>
+                                <strong>Dica r pida</strong>
+                                <p>Me‡a com o p‚ totalmente apoiado para garantir precisÆo.</p>
                             </div>
                         </div>
                     </div>
@@ -197,10 +198,92 @@
                 ${state.error ? `<p class="bbs-error-text">${state.error}</p>` : ''}
 
                 <div class="bbs-footer-area shoe-footer">
-                    <button class="bbs-btn-next" id="btn-calc-shoe">Ver recomendação</button>
+                    <div class="bbs-actions-row" style="justify-content:flex-start;gap:12px;">
+                        <button class="bbs-btn-next bbs-btn-outline" id="btn-guide-shoe">Como medir</button>
+                        <button class="bbs-btn-next" id="btn-calc-shoe">Ver recomenda‡Æo</button>
+                    </div>
                 </div>
             </div>
+
+            ${state.showGuide ? `
+                <div class="bbs-guide-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.86);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40;">
+                    <div class="bbs-guide-card" style="background:#fff;border-radius:16px;max-width:420px;width:90%;padding:28px;box-shadow:0 20px 45px rgba(15,23,42,0.25);position:relative;">
+                        <button class="bbs-close-btn" id="btn-close-guide" style="position:absolute;top:12px;right:12px;width:32px;height:32px;">&times;</button>
+                        <h3 class="bbs-title" style="margin-bottom:6px;">Como medir seu p‚</h3>
+                        <p class="bbs-subtitle" style="margin-bottom:16px;">Passos r pidos para capturar a medida com precisÆo.</p>
+                        <ol class="bbs-guide-list" style="padding-left:18px;display:flex;flex-direction:column;gap:10px;color:#0f172a;">
+                            <li><strong>Encoste o calcanhar</strong> em uma parede e mantenha todo o p‚ apoiado.</li>
+                            <li><strong>Marque o dedÆo</strong> riscando a ponta em uma folha ou fita colada no piso.</li>
+                            <li><strong>Me‡a a distƒncia</strong> entre a parede e a marca usando uma r‚gua ou fita m‚trica.</li>
+                            <li>Repita no outro p‚ e <strong>use o maior valor</strong> antes de preencher o campo.</li>
+                        </ol>
+                        <p class="bbs-subtitle" style="margin-top:14px;">Pronto! Feche esta tela para voltar ao provador.</p>
+                    </div>
+                </div>
+            ` : ''}
         `;
+
+        const range = document.getElementById('inp-foot-range');
+        const num = document.getElementById('inp-foot-num');
+        const valueDisplay = document.getElementById('bbs-foot-value');
+
+        const syncValue = (val) => {
+            const safeVal = parseFloat(val || currentVal);
+            state.data.pe = safeVal;
+            if (valueDisplay) valueDisplay.textContent = `${safeVal.toFixed(1)} cm`;
+        };
+
+        range.oninput = (e) => {
+            num.value = e.target.value;
+            syncValue(e.target.value);
+        };
+
+        num.oninput = (e) => {
+            range.value = e.target.value;
+            syncValue(e.target.value);
+        };
+
+        syncValue(currentVal);
+
+        const guideBtn = document.getElementById('btn-guide-shoe');
+        if (guideBtn) {
+            guideBtn.onclick = () => {
+                state.showGuide = true;
+                render();
+            };
+        }
+
+        if (state.showGuide) {
+            const closeGuide = document.getElementById('btn-close-guide');
+            if (closeGuide) {
+                closeGuide.onclick = () => {
+                    state.showGuide = false;
+                    render();
+                };
+            }
+        }
+
+        document.getElementById('btn-calc-shoe').onclick = () => {
+            state.showGuide = false;
+            const val = parseFloat(num.value);
+            if (!val || val < minRange || val > maxRange) {
+                setError('Medida inv lida.');
+                render();
+                return;
+            }
+            state.data.pe = val;
+            setError('');
+            submitData();
+        };
+    }
+
+                <div class="bbs-footer-area shoe-footer">
+                    <div class="bbs-actions-row" style="justify-content:flex-start;gap:12px;">
+                        <button class="bbs-btn-next bbs-btn-outline" id="btn-guide-shoe">Como medir</button>
+                        <button class="bbs-btn-next" id="btn-calc-shoe">Ver recomenda‡Æo</button>
+                    </div>
+                </div>
+            </div>        `;
 
         const range = document.getElementById('inp-foot-range');
         const num = document.getElementById('inp-foot-num');
@@ -359,6 +442,7 @@
     }
 
     async function submitData() {
+        state.showGuide = false;
         state.loading = true;
         state.step = 3;
         render();
@@ -419,6 +503,7 @@
 
     function openModal() {
         overlay.classList.add('open');
+        state.showGuide = false;
         state.step = 1;
         setError('');
         render();
@@ -454,9 +539,13 @@
         });
     };
 
-    document.getElementById('bbs-close').onclick = () => overlay.classList.remove('open');
+    document.getElementById('bbs-close').onclick = () => {
+        state.showGuide = false;
+        overlay.classList.remove('open');
+    };
     overlay.addEventListener('click', (event) => {
         if (event.target === overlay) {
+            state.showGuide = false;
             overlay.classList.remove('open');
         }
     });
