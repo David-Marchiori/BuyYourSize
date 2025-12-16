@@ -209,30 +209,42 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
     frase_sugestao,
     frases_sugestao
   } = req.body;
+
   if (!modelagem_id || !sugestao_tamanho) {
     return res.status(400).json({ error: 'Dados obrigatórios faltando.' });
   }
-  // SEGURANÇA: Verifica se a modelagem pertence à loja do usuário antes de inserir
+
   const { data: modelagem } = await supabase
     .from('modelagens')
-    .select('id')
+    .select('id, tipo')
     .eq('id', modelagem_id)
-    .eq('store_id', req.storeId) // <--- TRAVA DE SEGURANÇA
+    .eq('store_id', req.storeId)
     .single();
 
-  if (!modelagem) return res.status(403).json({ error: 'Modelagem não pertence à sua loja.' });
+  if (!modelagem) {
+    return res.status(403).json({ error: 'Modelagem não pertence à sua loja.' });
+  }
 
   try {
-    // 2. ADICIONE OS CAMPOS NO INSERT DO SUPABASE
+    const normalizedCondicoes = Array.isArray(condicoes) ? [...condicoes] : [];
+    const isCalcado = (modelagem.tipo || '').toLowerCase() === 'calcado';
+    const minVal = toNumber(pe_min);
+    const maxVal = toNumber(pe_max);
+
+    if (isCalcado && normalizedCondicoes.length === 0) {
+      const autoCondicoes = buildFootConditions(minVal, maxVal);
+      if (autoCondicoes.length) normalizedCondicoes.push(...autoCondicoes);
+    }
+
     const { data, error } = await supabase
       .from('regras_detalhes')
       .insert([{
         modelagem_id,
         sugestao_tamanho,
-        condicoes: condicoes || [],
+        condicoes: normalizedCondicoes,
         prioridade: prioridade || 0,
-        pe_min: pe_min ? parseFloat(pe_min) : null,
-        pe_max: pe_max ? parseFloat(pe_max) : null,
+        pe_min: minVal,
+        pe_max: maxVal,
         frase_sugestao: serializePhrases(frases_sugestao ?? frase_sugestao)
       }])
       .select()
@@ -242,7 +254,7 @@ app.post('/api/regras', authenticateAdmin, async (req, res) => {
     res.status(201).json(mapRuleWithPhrases(data));
 
   } catch (err) {
-    console.error("Erro ao criar regra:", err);
+    console.error('Erro ao criar regra:', err);
     res.status(500).json({ error: 'Erro ao salvar regra.' });
   }
 });
@@ -288,19 +300,49 @@ app.put('/api/regras/:id', authenticateAdmin, async (req, res) => {
     frases_sugestao
   } = req.body;
 
+  const { data: existingRule, error: existingError } = await supabase
+    .from('regras_detalhes')
+    .select('id, modelagem_id, pe_min, pe_max, modelagens!inner(store_id, tipo)')
+    .eq('id', id)
+    .single();
+
+  if (existingError || !existingRule) {
+    return res.status(404).json({ error: 'Regra não encontrada.' });
+  }
+
+  if (existingRule.modelagens?.store_id !== req.storeId) {
+    return res.status(403).json({ error: 'Acesso negado.' });
+  }
+
+  const modelingType = (existingRule.modelagens?.tipo || '').toLowerCase();
+
   try {
     const updatePayload = {};
-    if (condicoes) updatePayload.condicoes = condicoes;
+    if (Array.isArray(condicoes)) updatePayload.condicoes = condicoes;
     if (sugestao_tamanho) updatePayload.sugestao_tamanho = sugestao_tamanho;
     if (prioridade !== undefined) updatePayload.prioridade = prioridade;
-    if (pe_min !== undefined) {
-      updatePayload.pe_min = pe_min === null || pe_min === '' ? null : parseFloat(pe_min);
-    }
-    if (pe_max !== undefined) {
-      updatePayload.pe_max = pe_max === null || pe_max === '' ? null : parseFloat(pe_max);
-    }
+
+    const newMin = pe_min !== undefined ? toNumber(pe_min) : null;
+    const newMax = pe_max !== undefined ? toNumber(pe_max) : null;
+
+    if (pe_min !== undefined) updatePayload.pe_min = newMin;
+    if (pe_max !== undefined) updatePayload.pe_max = newMax;
+
+    const effectiveMin = pe_min !== undefined ? newMin : toNumber(existingRule.pe_min);
+    const effectiveMax = pe_max !== undefined ? newMax : toNumber(existingRule.pe_max);
+
     if (frases_sugestao !== undefined || frase_sugestao !== undefined) {
       updatePayload.frase_sugestao = serializePhrases(frases_sugestao ?? frase_sugestao);
+    }
+
+    if (modelingType === 'calcado') {
+      const needsAutoCondicoes = !updatePayload.condicoes || updatePayload.condicoes.length === 0;
+      if (needsAutoCondicoes) {
+        const autoCondicoes = buildFootConditions(effectiveMin, effectiveMax);
+        if (autoCondicoes.length) {
+          updatePayload.condicoes = autoCondicoes;
+        }
+      }
     }
 
     const { error: updateError, data: updateData } = await supabase
@@ -393,6 +435,20 @@ const mapRuleWithPhrases = (rule) => {
     ...rule,
     frases_sugestao: parsePhraseList(rule.frase_sugestao)
   };
+};
+
+const toNumber = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildFootConditions = (minVal, maxVal) => {
+  if (minVal === null || maxVal === null) return [];
+  return [
+    { campo: 'pe', operador: '>=', valor: minVal },
+    { campo: 'pe', operador: '<=', valor: maxVal }
+  ];
 };
 
 // 8. ROTA POST: CÁLCULO DA SUGESTÃO DE TAMANHO (Blindada por store_id)
