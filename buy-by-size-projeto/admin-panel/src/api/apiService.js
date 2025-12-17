@@ -1,7 +1,7 @@
 // src/api/apiService.js
 
-import axios from 'axios';
-import { supabase } from '@/supabase'; // <--- ADICIONE ESTA LINHA OBRIGATÓRIA
+import axios from "axios";
+import { supabase } from "@/supabase"; // <--- ADICIONE ESTA LINHA OBRIGATÓRIA
 
 // Lê as chaves do arquivo .env (graças ao Vite)
 const API_URL = import.meta.env.VITE_API_URL;
@@ -10,8 +10,8 @@ const API_URL = import.meta.env.VITE_API_URL;
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    "Content-Type": "application/json",
+  },
 });
 
 // INTERCEPTOR: Injeta o token do usuário logado antes de cada requisição
@@ -26,8 +26,7 @@ apiClient.interceptors.request.use(async (config) => {
     // Fallback: Se não estiver logado, você pode decidir se manda a chave mestra (apenas local)
     // ou se deixa a requisição falhar (correto para segurança).
     // Para facilitar seu teste LOCAL, você pode descomentar abaixo se tiver a chave no .env:
-
-    // config.headers['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY; 
+    // config.headers['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY;
   }
   return config;
 });
@@ -36,19 +35,19 @@ apiClient.interceptors.request.use(async (config) => {
 /**
  * GET /api/produtos
  */
-export const getCatalogProducts = async (page = 1, search = '') => {
+export const getCatalogProducts = async (page = 1, search = "") => {
   try {
     // Passa os parâmetros na URL (ex: /produtos?page=1&limit=50&q=camiseta)
-    const response = await apiClient.get('/produtos', {
+    const response = await apiClient.get("/produtos", {
       params: {
         page: page,
         limit: 50,
-        q: search
-      }
+        q: search,
+      },
     });
     return response.data; // Agora retorna { produtos: [], total: 100, ... }
   } catch (error) {
-    console.error('Erro ao buscar catálogo:', error);
+    console.error("Erro ao buscar catálogo:", error);
     throw error;
   }
 };
@@ -58,10 +57,10 @@ export const getCatalogProducts = async (page = 1, search = '') => {
  */
 export const syncCatalog = async (xmlUrl) => {
   try {
-    const response = await apiClient.post('/produtos/sync-xml', { xmlUrl });
+    const response = await apiClient.post("/produtos/sync-xml", { xmlUrl });
     return response.data;
   } catch (error) {
-    console.error('Erro ao sincronizar catálogo:', error.response || error);
+    console.error("Erro ao sincronizar catálogo:", error.response || error);
     throw error;
   }
 };
@@ -70,12 +69,12 @@ export const syncCatalog = async (xmlUrl) => {
 
 export const getProductRules = async (produtoId) => {
   try {
-    const response = await apiClient.get('/regras', {
-      params: { produto_id: produtoId }
+    const response = await apiClient.get("/regras", {
+      params: { produto_id: produtoId },
     });
     return response.data.regras;
   } catch (error) {
-    console.error('Erro ao buscar regras:', error.response || error);
+    console.error("Erro ao buscar regras:", error.response || error);
     throw error;
   }
 };
@@ -92,11 +91,11 @@ export const saveRule = async (ruleData) => {
       return response.data;
     } else {
       // POST /api/regras
-      const response = await apiClient.post('/regras', ruleData);
+      const response = await apiClient.post("/regras", ruleData);
       return response.data;
     }
   } catch (error) {
-    console.error('Erro ao salvar regra:', error.response || error);
+    console.error("Erro ao salvar regra:", error.response || error);
     throw error;
   }
 };
@@ -109,7 +108,7 @@ export const deleteRule = async (ruleId) => {
     const response = await apiClient.delete(`/regras/${ruleId}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao excluir regra:', error.response || error);
+    console.error("Erro ao excluir regra:", error.response || error);
     throw error;
   }
 };
@@ -120,14 +119,14 @@ export const deleteRule = async (ruleId) => {
  */
 export const getStoreSettings = async () => {
   try {
-    const response = await apiClient.get('/store-config');
+    const response = await apiClient.get("/store-config");
     return response.data; // A API deve retornar o objeto de config
   } catch (error) {
     // Se der 404 (ainda não configurado), retorna padrão
     if (error.response && error.response.status === 404) {
-      return { xml_url: '', update_frequency: 24 };
+      return { xml_url: "", update_frequency: 24 };
     }
-    console.error('Erro ao buscar config da loja:', error);
+    console.error("Erro ao buscar config da loja:", error);
     throw error;
   }
 };
@@ -138,10 +137,10 @@ export const getStoreSettings = async () => {
  */
 export const saveStoreSettings = async (settings) => {
   try {
-    const response = await apiClient.post('/store-config', settings);
+    const response = await apiClient.post("/store-config", settings);
     return response.data;
   } catch (error) {
-    console.error('Erro ao salvar config da loja:', error);
+    console.error("Erro ao salvar config da loja:", error);
     throw error;
   }
 };
@@ -152,10 +151,10 @@ export const saveStoreSettings = async (settings) => {
  */
 export const getSyncHistory = async () => {
   try {
-    const response = await apiClient.get('/sync-logs');
+    const response = await apiClient.get("/sync-logs");
     return response.data.logs; // Espera { logs: [] }
   } catch (error) {
-    console.error('Erro ao buscar logs:', error);
+    console.error("Erro ao buscar logs:", error);
     throw error;
   }
 };
@@ -171,16 +170,15 @@ export const getLastSyncLog = async () => {
 };
 
 export const getSyncLogs = async () => {
-    try {
-        const response = await apiClient.get('/sync-logs');
-        // O backend retorna { logs: [] }
-        return response.data.logs; 
-    } catch (error) {
-        console.error('Erro ao buscar logs:', error);
-        throw error;
-    }
+  try {
+    const response = await apiClient.get("/sync-logs");
+    // O backend retorna { logs: [] }
+    return response.data.logs;
+  } catch (error) {
+    console.error("Erro ao buscar logs:", error);
+    throw error;
+  }
 };
-
 
 /**
  * GET /api/regras/stats
@@ -188,10 +186,10 @@ export const getSyncLogs = async () => {
  */
 export const getConfiguredRuleStats = async () => {
   try {
-    const response = await apiClient.get('/regras/stats');
+    const response = await apiClient.get("/regras/stats");
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar estatísticas de regras:', error);
+    console.error("Erro ao buscar estatísticas de regras:", error);
     // Retorna objeto vazio em caso de erro para não quebrar a tela
     return {};
   }
@@ -200,10 +198,10 @@ export const getConfiguredRuleStats = async () => {
 // Lista todas as modelagens cadastradas
 export const getModelings = async () => {
   try {
-    const response = await apiClient.get('/modelagens');
+    const response = await apiClient.get("/modelagens");
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar modelagens:', error);
+    console.error("Erro ao buscar modelagens:", error);
     throw error;
   }
 };
@@ -215,7 +213,7 @@ export const getModelingDetails = async (id) => {
     const response = await apiClient.get(`/modelagens/${id}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar detalhes da modelagem:', error);
+    console.error("Erro ao buscar detalhes da modelagem:", error);
     throw error;
   }
 };
@@ -226,14 +224,14 @@ export const createModeling = async (nome, tipo) => {
     // Não precisa mais buscar storeId aqui!
     // O token de autenticação (JWT) no header já diz pro backend quem é o usuário.
 
-    const response = await apiClient.post('/modelagens', {
+    const response = await apiClient.post("/modelagens", {
       nome,
-      tipo
+      tipo,
     });
 
     return response.data;
   } catch (error) {
-    console.error('Erro ao criar modelagem:', error);
+    console.error("Erro ao criar modelagem:", error);
     throw error;
   }
 };
@@ -244,7 +242,7 @@ export const deleteModeling = async (modelagemId) => {
     const response = await apiClient.delete(`/modelagens/${modelagemId}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao excluir modelagem:', error);
+    console.error("Erro ao excluir modelagem:", error);
     throw error;
   }
 };
@@ -253,11 +251,11 @@ export const deleteModeling = async (modelagemId) => {
 export const linkProductToModeling = async (productId, modelingId) => {
   try {
     const response = await apiClient.put(`/produtos/${productId}/vincular`, {
-      modelagem_id: modelingId
+      modelagem_id: modelingId,
     });
     return response.data;
   } catch (error) {
-    console.error('Erro ao vincular produto:', error);
+    console.error("Erro ao vincular produto:", error);
     throw error;
   }
 };
@@ -265,12 +263,12 @@ export const linkProductToModeling = async (productId, modelingId) => {
 // Busca regras de uma MODELAGEM específica
 export const getModelingRules = async (modelingId) => {
   try {
-    const response = await apiClient.get('/regras', {
-      params: { modelagem_id: modelingId }
+    const response = await apiClient.get("/regras", {
+      params: { modelagem_id: modelingId },
     });
     return response.data.regras;
   } catch (error) {
-    console.error('Erro ao buscar regras da modelagem:', error);
+    console.error("Erro ao buscar regras da modelagem:", error);
     throw error;
   }
 };
@@ -278,13 +276,13 @@ export const getModelingRules = async (modelingId) => {
 // Vincula múltiplos produtos a uma modelagem de uma vez
 export const linkProductsBatch = async (productIds, modelingId) => {
   try {
-    const response = await apiClient.post('/produtos/vincular-mass', {
+    const response = await apiClient.post("/produtos/vincular-mass", {
       product_ids: productIds,
-      modelagem_id: modelingId
+      modelagem_id: modelingId,
     });
     return response.data;
   } catch (error) {
-    console.error('Erro no vínculo em massa:', error);
+    console.error("Erro no vínculo em massa:", error);
     throw error;
   }
 };
@@ -292,22 +290,22 @@ export const linkProductsBatch = async (productIds, modelingId) => {
 // Desvincula múltiplos produtos (remove a modelagem deles)
 export const unlinkProductsBatch = async (productIds) => {
   try {
-    const response = await apiClient.post('/produtos/desvincular-mass', {
-      product_ids: productIds
+    const response = await apiClient.post("/produtos/desvincular-mass", {
+      product_ids: productIds,
     });
     return response.data;
   } catch (error) {
-    console.error('Erro ao desvincular produtos:', error);
+    console.error("Erro ao desvincular produtos:", error);
     throw error;
   }
 };
 
 export const getDashboardStats = async () => {
   try {
-    const response = await apiClient.get('/dashboard/stats');
+    const response = await apiClient.get("/dashboard/stats");
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar stats do dashboard:', error);
+    console.error("Erro ao buscar stats do dashboard:", error);
     throw error;
   }
 };
@@ -317,8 +315,20 @@ export const getProductsByModeling = async (modelingId) => {
     const response = await apiClient.get(`/modelagens/${modelingId}/produtos`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar produtos vinculados:', error);
+    console.error("Erro ao buscar produtos vinculados:", error);
     return []; // Retorna array vazio para não quebrar a tela
+  }
+};
+
+export const getAnalyticsKPIs = async () => {
+  try {
+    // Chama a rota que criamos no backend para contar os logs
+    const response = await apiClient.get("/analytics/kpis");
+    return response.data;
+  } catch (error) {
+    console.error("Erro ao buscar KPIs de Analytics:", error);
+    // Retorna zerado para não quebrar o dashboard se a API falhar
+    return { total_recomendacoes: 0, ultimas_24h: 0 };
   }
 };
 
