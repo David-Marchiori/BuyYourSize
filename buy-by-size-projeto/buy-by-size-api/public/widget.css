@@ -476,7 +476,6 @@
     grid-template-columns: 1fr;
   }
 }
-
 .bbs-clean-wrapper {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   text-align: center;
@@ -501,7 +500,7 @@
   margin-right: auto;
 }
 
-/* Container do Slider e Input */
+/* Slider e Input */
 .bbs-input-area {
   display: flex;
   align-items: center;
@@ -519,13 +518,11 @@
   color: #374151;
   margin-bottom: 10px;
 }
-
-/* Estilização Customizada do Range Slider para ficar igual a imagem */
 .bbs-range-modern {
   -webkit-appearance: none;
   width: 100%;
   height: 6px;
-  background: #e5e7eb; /* Cinza claro */
+  background: #e5e7eb;
   border-radius: 5px;
   outline: none;
 }
@@ -535,7 +532,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #333333; /* Bolinha preta */
+  background: #333333;
   cursor: pointer;
   transition: transform 0.1s;
 }
@@ -543,7 +540,6 @@
   transform: scale(1.1);
 }
 
-/* Input numérico quadrado */
 .bbs-number-box {
   display: flex;
   align-items: center;
@@ -558,54 +554,407 @@
   text-align: center;
   color: #333;
 }
-.bbs-unit-text {
-  font-size: 1rem;
-  color: #333;
+
+/* --- NOVOS ESTILOS DOS BOTÕES --- */
+
+/* Container para alinhar os botões lado a lado */
+.bbs-actions-row {
+  display: flex;
+  justify-content: flex-end; /* Alinha tudo à direita */
+  gap: 12px; /* Espaço entre os botões */
+  border-top: 1px solid transparent;
+  padding-top: 20px;
+  margin-top: 20px;
 }
 
-/* Botão "Como se medir" (Pill Shape) */
-.btn-guide-pill {
+/* Classe Base (Layout Igual para ambos) */
+.bbs-btn {
+  padding: 12px 24px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 6px; /* Bordas levemente arredondadas igual o Próximo */
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 48px; /* Altura fixa para garantir alinhamento */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px; /* Largura mínima para ficarem bonitos */
+}
+
+/* Estilo Específico: Botão Guia (Outline/Cinza) */
+.bbs-btn-outline {
   background: #fff;
   border: 1px solid #e2e8f0;
   color: #64748b;
-  padding: 10px 24px;
-  border-radius: 50px; /* Formato pílula */
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 40px;
 }
-.btn-guide-pill:hover {
+.bbs-btn-outline:hover {
   border-color: #cbd5e1;
   color: #334155;
+  background: #f8fafc;
 }
 
-/* Área do botão Próximo */
-.bbs-footer-action {
-  display: flex;
-  justify-content: flex-end; /* Joga para direita */
-  border-top: 1px solid transparent;
-  padding-top: 20px;
-}
-.btn-next-modern {
-  background-color: #7c83fd; /* Cor azul/roxa da imagem */
+/* Estilo Específico: Botão Próximo (Sólido/Azul) */
+.bbs-btn-primary {
+  background-color: #7c83fd;
   color: white;
   border: none;
-  padding: 12px 40px;
-  font-size: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  border-radius: 6px;
-  cursor: pointer;
   box-shadow: 0 4px 6px -1px rgba(124, 131, 253, 0.3);
-  transition: background 0.2s;
 }
-.btn-next-modern:hover {
+.bbs-btn-primary:hover {
   background-color: #6b72e6;
 }
+
 .bbs-error-msg {
   color: #ef4444;
   font-size: 0.85rem;
   margin-top: -30px;
   margin-bottom: 20px;
+}
+
+.bbs-result-wrapper {
+  text-align: center;
+  padding: 10px 20px 20px;
+  font-family: "Inter", -apple-system, sans-serif;
+  color: #333;
+}
+.bbs-result-header {
+  margin-bottom: 20px;
+}
+.bbs-result-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* O Grande Número do Tamanho */
+.bbs-big-size {
+  font-size: 5rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  margin: 10px 0 20px;
+  letter-spacing: -2px;
+}
+
+/* Container das Pílulas */
+.bbs-pills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+/* Estilo da Pílula Verde */
+.bbs-pill-green {
+  background-color: #dcfce7; /* Verde clarinho */
+  color: #166534; /* Verde escuro para contraste */
+  padding: 8px 16px;
+  border-radius: 999px; /* Formato pílula total */
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Botões (Reutilizando o estilo do passo anterior para consistência) */
+.bbs-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+}
+.bbs-btn {
+  padding: 0 24px;
+  height: 48px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  transition: all 0.2s;
+}
+.bbs-btn-outline {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+.bbs-btn-outline:hover {
+  border-color: #cbd5e1;
+  color: #334155;
+  background: #f8fafc;
+}
+.bbs-btn-primary {
+  background-color: #7c83fd;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(124, 131, 253, 0.3);
+}
+.bbs-btn-primary:hover {
+  background-color: #6b72e6;
+}
+
+.bbs-error-box {
+  color: #ef4444;
+  margin: 30px 0;
+}
+
+/* Botão do Provador Virtual - Estilo "Secundário/Discreto" */
+.bbs-trigger-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px; /* Distância entre ícone e texto */
+
+  background-color: transparent; /* Sem fundo para não competir */
+  border: 1px solid #cbd5e1; /* Borda cinza sutil */
+  color: #475569; /* Texto cinza escuro, não preto */
+
+  padding: 6px 12px; /* Padding compacto */
+  border-radius: 4px; /* Bordas levemente arredondadas */
+
+  font-family: inherit;
+  font-size: 13px; /* Fonte pequena */
+  font-weight: 500; /* Peso médio, não negrito */
+  line-height: 1;
+
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.bbs-trigger-mini:hover {
+  border-color: #94a3b8;
+  color: #1e293b;
+  background-color: #f8fafc; /* Fundo muito leve ao passar o mouse */
+}
+
+/* Ícone dentro do botão */
+.bbs-trigger-mini svg {
+  width: 16px; /* Ícone pequeno */
+  height: 16px;
+  fill: none;
+  stroke: currentColor; /* Pega a cor do texto */
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* =========================================
+   BBS Widget - Passo de Medição (Sapato)
+   ========================================= */
+
+/* Container Principal */
+.bbs-clean-wrapper {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  text-align: left; /* Alinhamento à esquerda */
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #333;
+  background: #fff; /* Garante fundo branco se sobreposto */
+}
+
+/* Área da Imagem (Mobile First) */
+.bbs-img-header {
+  width: 100%;
+  height: 180px; /* Altura fixa para consistência */
+  background-color: #f8fafc;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bbs-img-header img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* A imagem preenche o espaço sem distorcer */
+  object-position: bottom;
+  display: block;
+}
+
+/* Tipografia */
+.bbs-clean-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.bbs-clean-subtitle {
+  font-size: 0.95rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 30px;
+  margin-left: 0;
+  max-width: 100%;
+}
+
+/* --- Controles (Slider e Input) --- */
+
+.bbs-input-area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 40px;
+  text-align: left;
+}
+
+.bbs-slider-group {
+  flex: 1; /* Ocupa o espaço restante */
+}
+
+.bbs-input-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+/* Estilização do Range Slider (Barra Cinza) */
+.bbs-range-modern {
+  -webkit-appearance: none; /* Remove estilo padrão do browser */
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* A "Bolinha" do Slider (Thumb) - Chrome/Safari/Edge */
+.bbs-range-modern::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1f2937; /* Cinza escuro/Preto */
+  border: 3px solid #fff; /* Borda branca para destacar */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Sombra suave */
+  transition: transform 0.1s;
+  margin-top: -9px; /* Centraliza na barra (calculo: (height thumb - height track) / -2 ) */
+}
+
+.bbs-range-modern::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  background: #000;
+}
+
+/* A "Bolinha" do Slider (Thumb) - Firefox */
+.bbs-range-modern::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1f2937;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+/* Input Numérico Quadrado */
+.bbs-number-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bbs-input-modern {
+  width: 70px;
+  padding: 10px 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  color: #333;
+  background: #fff;
+  /* Remove setinhas do input number em alguns browsers */
+  -moz-appearance: textfield;
+}
+
+.bbs-input-modern::-webkit-outer-spin-button,
+.bbs-input-modern::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* --- Botões de Ação --- */
+
+.bbs-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 20px;
+}
+
+.bbs-btn {
+  padding: 0 20px;
+  height: 48px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex: 1; /* Faz os botões dividirem a largura igualmente */
+}
+
+.bbs-btn-outline {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+
+.bbs-btn-outline:hover {
+  border-color: #94a3b8;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.bbs-btn-primary {
+  background-color: #7c83fd; /* Cor principal */
+  color: white;
+  border: none;
+  box-shadow: 0 4px 10px -2px rgba(124, 131, 253, 0.4);
+}
+
+.bbs-btn-primary:hover {
+  background-color: #6b72e6;
+}
+
+/* Mensagem de Erro */
+.bbs-error-msg {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: -20px;
+  margin-bottom: 20px;
+  text-align: left;
+  font-weight: 500;
 }

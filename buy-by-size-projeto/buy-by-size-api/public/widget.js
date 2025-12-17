@@ -159,20 +159,27 @@
     const maxRange = 34;
     const currentVal = state.data.pe || 26;
 
+    // Verifica se a variável global productImage existe e não é vazia
+    const imgUrl = typeof productImage !== "undefined" ? productImage : "";
+
+    // HTML Estrutural (As classes CSS farão o estilo)
     contentArea.innerHTML = `
-        ${customStyles}
-        
         <div class="bbs-anim-enter bbs-clean-wrapper">
+            
+            ${
+              imgUrl
+                ? `<div class="bbs-img-header"><img src="${imgUrl}" alt="Produto"></div>`
+                : ""
+            }
             
             <h2 class="bbs-clean-title">Qual é o comprimento do seu pé?</h2>
             <p class="bbs-clean-subtitle">
-                Selecione a medida do seu pé abaixo, seguindo nossa<br>
-                orientação sobre como medir a si mesmo.
+                Selecione a medida no controle abaixo ou digite o valor exato.
             </p>
 
             <div class="bbs-input-area">
                 <div class="bbs-slider-group">
-                    <label class="bbs-input-label">Comprimento do pé</label>
+                    <label class="bbs-input-label">Ajuste os centímetros</label>
                     <input type="range" id="inp-foot-range" class="bbs-range-modern" 
                            min="${minRange}" max="${maxRange}" step="0.1" value="${currentVal}">
                 </div>
@@ -180,33 +187,32 @@
                 <div class="bbs-number-box">
                     <input type="number" id="inp-foot-num" class="bbs-input-modern" 
                            value="${currentVal}" step="0.1" min="${minRange}" max="${maxRange}">
-                    <span class="bbs-unit-text">cm</span>
+                    <span style="font-size:0.9rem; font-weight:500; color:#64748b;">cm</span>
                 </div>
             </div>
 
             ${state.error ? `<p class="bbs-error-msg">${state.error}</p>` : ""}
 
-            <button id="btn-guide-shoe" class="btn-guide-pill">Como se medir</button>
-
-            <div class="bbs-footer-action">
-                <button id="btn-calc-shoe" class="btn-next-modern">PRÓXIMO</button>
+            <div class="bbs-actions-row">
+                <button id="btn-guide-shoe" class="bbs-btn bbs-btn-outline">Como medir</button>
+                <button id="btn-calc-shoe" class="bbs-btn bbs-btn-primary">PRÓXIMO</button>
             </div>
         </div>
 
         ${
           state.showGuide
             ? `
-            <div class="bbs-guide-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;">
-                <div class="bbs-guide-card" style="background:#fff;border-radius:12px;width:90%;max-width:400px;padding:24px;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-                    <button id="btn-close-guide" style="position:absolute;top:10px;right:10px;border:none;background:none;font-size:1.5rem;cursor:pointer;color:#666;">&times;</button>
-                    <h3 style="margin-top:0;color:#1f2937;">Como medir seu pé</h3>
-                    <ol style="padding-left:20px;color:#4b5563;line-height:1.6;">
-                        <li>Encoste o calcanhar em uma parede.</li>
-                        <li>Marque a ponta do dedão no chão.</li>
-                        <li>Meça a distância da parede até a marca.</li>
-                        <li>Use o maior valor entre os dois pés.</li>
+            <div class="bbs-guide-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;">
+                <div class="bbs-guide-card" style="background:#fff;border-radius:16px;width:100%;max-width:380px;padding:24px;position:relative;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+                    <button id="btn-close-guide" style="position:absolute;top:12px;right:12px;border:none;background:none;font-size:1.8rem;cursor:pointer;color:#94a3b8;line-height:1;">&times;</button>
+                    <h3 style="margin-top:0;color:#1f2937;font-size:1.25rem;">Como medir seu pé</h3>
+                    <ol style="padding-left:20px;color:#4b5563;line-height:1.6;margin-bottom:24px;">
+                        <li style="margin-bottom:8px;">Encoste o calcanhar em uma parede plana.</li>
+                        <li style="margin-bottom:8px;">Marque onde termina o seu "dedão" no chão.</li>
+                        <li style="margin-bottom:8px;">Meça a distância da parede até a marcação.</li>
+                        <li>Repita no outro pé e use o <strong>maior valor</strong>.</li>
                     </ol>
-                    <button id="btn-close-guide-action" style="width:100%;margin-top:15px;padding:10px;background:#f3f4f6;border:none;border-radius:6px;cursor:pointer;font-weight:600;color:#374151;">Entendi</button>
+                    <button id="btn-close-guide-action" style="width:100%;padding:14px;background:#f1f5f9;border:none;border-radius:8px;cursor:pointer;font-weight:700;color:#334155;text-transform:uppercase;font-size:0.9rem;">Entendi</button>
                 </div>
             </div>
         `
@@ -214,19 +220,19 @@
         }
     `;
 
-    // --- Lógica JS (Sincronização e Eventos) ---
+    // --- Lógica JS (Eventos e Sincronização) ---
 
     const range = document.getElementById("inp-foot-range");
     const num = document.getElementById("inp-foot-num");
 
-    // Função para manter Slider e Input sincronizados
+    // Sincroniza Slider <-> Input Numérico
     const syncValue = (val) => {
-      let safeVal = val;
-      // Validação visual simples para não quebrar o layout
+      let safeVal = parseFloat(val);
+      // Não forçamos o clamp no input visual imediatamente para permitir digitação,
+      // mas salvamos o valor tratado no state se estiver dentro do range
       if (safeVal > maxRange) safeVal = maxRange;
       if (safeVal < minRange) safeVal = minRange;
-
-      state.data.pe = parseFloat(safeVal);
+      state.data.pe = safeVal;
     };
 
     range.oninput = (e) => {
@@ -239,7 +245,7 @@
       syncValue(e.target.value);
     };
 
-    // Botão de Dicas (Como medir)
+    // Abertura do Modal de Guia
     const guideBtn = document.getElementById("btn-guide-shoe");
     if (guideBtn) {
       guideBtn.onclick = () => {
@@ -248,7 +254,7 @@
       };
     }
 
-    // Fechar Modal de Dicas
+    // Fechamento do Modal de Guia
     if (state.showGuide) {
       const closeActions = [
         document.getElementById("btn-close-guide"),
@@ -264,22 +270,20 @@
       });
     }
 
-    // Botão PRÓXIMO
+    // Ação do Botão Próximo (Validação)
     document.getElementById("btn-calc-shoe").onclick = () => {
       state.showGuide = false;
       const val = parseFloat(num.value);
 
       if (!val || val < minRange || val > maxRange) {
-        setError(
-          `Por favor, insira um valor entre ${minRange} e ${maxRange} cm.`
-        );
-        render();
+        setError(`Valor inválido. Insira entre ${minRange} e ${maxRange} cm.`);
+        render(); // Re-renderiza para mostrar o erro
         return;
       }
 
       state.data.pe = val;
       setError("");
-      submitData(); // Avança para o próximo passo
+      submitData();
     };
   }
 
@@ -350,82 +354,98 @@
   function renderResult() {
     const hasResult = !!state.result;
     const size = state.result || "?";
-    const phrases =
-      state.resultPhrases && state.resultPhrases.length
+
+    // Frases de reforço positivo (Padrão caso não venha da API)
+    const defaultPhrases = [
+      "Alta precisão",
+      "Conforto garantido",
+      "Medida verificada",
+    ];
+
+    // Se a API mandar frases, usamos. Se não, usamos as padrões para manter o layout bonito.
+    // Se a API mandar apenas uma, completamos com as padrões.
+    let displayPhrases =
+      state.resultPhrases && state.resultPhrases.length > 0
         ? state.resultPhrases
-        : [
-            state.type === "calcado"
-              ? "Ideal para o seu pé"
-              : "Medida compatível",
-          ];
-    const [mainPhrase, ...extraPhrases] = phrases;
+        : defaultPhrases;
+
+    // Garante que temos pelo menos 2 frases para o visual ficar legal
+    if (displayPhrases.length < 2) {
+      displayPhrases = [...displayPhrases, ...defaultPhrases.slice(0, 2)];
+    }
+    // Limitamos a 3 para não poluir
+    displayPhrases = displayPhrases.slice(0, 3);
 
     let body = "";
 
     if (hasResult) {
-      const feedbackList = extraPhrases
+      // Gera o HTML das pílulas verdes
+      const pillsHTML = displayPhrases
         .map(
-          (text) => `
-                <div class="bbs-feedback-card">
-                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#0f172a" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    <span>${text}</span>
-                </div>
-            `
+          (phrase) => `
+            <div class="bbs-pill-green">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>${phrase}</span>
+            </div>
+        `
         )
         .join("");
 
       body = `
-                <div class="bbs-header">
-                    <h3 class="bbs-title">Sua recomendação</h3>
-                    <p class="bbs-subtitle">Com base nas suas medidas, este é o melhor tamanho.</p>
-                </div>
-                <div class="bbs-result-grid">
-                    <div class="bbs-result-main">
-                        <div class="bbs-size-box">
-                            ${size}
-                            <div class="bbs-check-badge"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="#fff"/></svg></div>
-                        </div>
-                        <p class="bbs-result-label">${
-                          mainPhrase || `${size} é a melhor escolha agora.`
-                        }</p>
-                    </div>
-                    ${
-                      extraPhrases.length
-                        ? `<div class="bbs-feedback-stack">
-                        <div class="bbs-subtitle" style="margin-bottom:8px;font-weight:600;color:#0f172a;">Outros feedbacks</div>
-                        ${feedbackList}
-                    </div>`
-                        : ""
-                    }
-                </div>
-            `;
+            <div class="bbs-result-header">
+                <div class="bbs-result-title">Seu tamanho ideal é</div>
+                <div class="bbs-big-size">${size}</div>
+            </div>
+
+            <div class="bbs-pills-container">
+                ${pillsHTML}
+            </div>
+
+            <p style="color:#64748b; font-size:0.95rem; margin-bottom:10px;">
+                Esta recomendação é baseada nas medidas exatas do seu pé comparadas com este produto.
+            </p>
+        `;
     } else {
+      // Caso de erro
       body = `
-                <div class="bbs-header">
-                    <h3 class="bbs-title">Ops!</h3>
-                    <p class="bbs-subtitle">${
-                      state.error || "Não encontramos uma sugestão."
-                    }</p>
-                </div>
-            `;
+            <div class="bbs-result-header">
+                <h3 style="color:#1f2937; margin-bottom:8px;">Ops!</h3>
+                <p class="bbs-error-box">${
+                  state.error || "Não conseguimos calcular o tamanho."
+                }</p>
+            </div>
+        `;
     }
 
     contentArea.innerHTML = `
-            <div class="bbs-anim-enter bbs-result-wrapper">
-                ${body}
-                <div class="bbs-footer-area bbs-result-footer">
-                    <button class="bbs-btn-outline" id="btn-edit">Refazer</button>
-                    <button class="bbs-btn-next" id="btn-close-final">Fechar</button>
-                </div>
+        <div class="bbs-anim-enter bbs-result-wrapper">
+            ${body}
+            
+            <div class="bbs-actions-row">
+                <button class="bbs-btn bbs-btn-outline" id="btn-edit">Refazer</button>
+                <button class="bbs-btn bbs-btn-primary" id="btn-close-final">Fechar</button>
             </div>
-        `;
+        </div>
+    `;
 
-    document.getElementById("btn-edit").onclick = () => {
-      state.step = 1;
-      render();
-    };
-    document.getElementById("btn-close-final").onclick = () =>
-      overlay.classList.remove("open");
+    // Eventos
+    const btnEdit = document.getElementById("btn-edit");
+    if (btnEdit) {
+      btnEdit.onclick = () => {
+        state.step = 1; // Ou para onde você quiser voltar
+        render();
+      };
+    }
+
+    const btnClose = document.getElementById("btn-close-final");
+    if (btnClose) {
+      btnClose.onclick = () => {
+        // Fecha o modal removendo a classe do overlay
+        if (overlay) overlay.classList.remove("open");
+      };
+    }
   }
 
   async function submitData() {
@@ -498,12 +518,27 @@
 
   function createTriggerButton() {
     const btn = document.createElement("button");
-    btn.id = "bbs-trigger-btn";
+    btn.className = "bbs-trigger-mini"; // Classe definida no CSS acima
     btn.type = "button";
+
+    // Ícone de Fita Métrica (Ruler) - Mais limpo e intuitivo para "Medidas"
+    const rulerIcon = `
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 12h20"></path>
+            <path d="M2 12l4-4"></path>
+            <path d="M6 12l4-4"></path>
+            <path d="M10 12l4-4"></path>
+            <path d="M14 12l4-4"></path>
+            <path d="M18 12l4-4"></path>
+            <path d="M22 12l-4-4"></path>
+        </svg>
+    `;
+
     btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 128 128" aria-hidden="true"><path d="M112.6 127H15.4c-5.8 0-10.6-3.6-12.4-9.1s.2-11.2 4.9-14.6l63-44.6c3.5-2.5 5.4-6.6 5-10.9-.5-5.6-5.1-10.3-10.7-10.8-6.2-.6-11.7 3.5-13 9.5-.3 1.6-1.9 2.7-3.5 2.3-1.6-.3-2.7-1.9-2.3-3.5 1.9-9 10.2-15.2 19.4-14.3 8.6.8 15.4 7.7 16.1 16.3.6 6.5-2.2 12.6-7.5 16.3l-63 44.6c-3.1 2.2-3.4 5.5-2.6 7.8.8 2.4 2.9 4.9 6.7 4.9h97.1c3.8 0 5.9-2.5 6.7-4.9s.5-5.7-2.6-7.8L74.4 78.4c-1.4-1-1.7-2.8-.7-4.2s2.8-1.7 4.2-.7l42.2 29.9c4.7 3.3 6.6 9 4.9 14.6s-6.7 9-12.4 9z" fill="currentColor"/></svg>
-            Achar o Tamanho Certo
-        `;
+        ${rulerIcon}
+        <span>Descubra seu tamanho</span>
+    `;
+
     btn.onclick = openModal;
     return btn;
   }
