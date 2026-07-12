@@ -1,3 +1,25 @@
+// Campos essenciais (obrigatórios pro cliente final) e opcionais (melhoram a precisão)
+// por tipo de modelagem. Único lugar que define quais medidas existem por tipo.
+const FIELD_CONFIG_BY_TYPE = {
+  parte_cima: { essenciais: ['busto', 'cintura'], opcionais: ['altura', 'peso'] },
+  parte_baixo: { essenciais: ['cintura'], opcionais: ['quadril', 'altura'] },
+  vestido: { essenciais: ['busto', 'quadril'], opcionais: ['cintura', 'altura', 'peso'] },
+  calcado: { essenciais: ['pe'], opcionais: [] }
+};
+
+const PRODUCT_TYPES = Object.keys(FIELD_CONFIG_BY_TYPE);
+
+const getFieldConfig = (tipo) => FIELD_CONFIG_BY_TYPE[tipo] || null;
+
+const getMissingEssentialFields = (tipo, medidas = {}) => {
+  const config = getFieldConfig(tipo);
+  if (!config) return [];
+  return config.essenciais.filter((campo) => {
+    const valor = medidas[campo];
+    return valor === undefined || valor === null || valor === '';
+  });
+};
+
 const sanitizePhraseArray = (list = []) =>
   list
     .map(item => (typeof item === 'string' ? item.trim() : ''))
@@ -71,6 +93,10 @@ const mapRuleWithPhrases = (rule) => {
 };
 
 module.exports = {
+  FIELD_CONFIG_BY_TYPE,
+  PRODUCT_TYPES,
+  getFieldConfig,
+  getMissingEssentialFields,
   sanitizePhraseArray,
   serializePhrases,
   parsePhraseList,

@@ -5,7 +5,8 @@ const allowedOrigins = [
   'https://village23.com.br',
   'https://expert-couscous-vj9xr7wp7q5c4qx-5173.app.github.dev',
   'https://expert-couscous-vj9xr7wp7q5c4qx-5500.app.github.dev',
-  'https://bino5.lojavirtualnuvem.com.br'
+  'https://bino5.lojavirtualnuvem.com.br',
+  'https://brunamarxbrand.com.br'
 ];
 
 const baseCorsOptions = {

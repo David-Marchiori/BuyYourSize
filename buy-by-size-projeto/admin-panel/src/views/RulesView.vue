@@ -7,11 +7,18 @@ import {
     getCatalogProducts, linkProductsBatch, unlinkProductsBatch,
     getProductsByModeling, deleteModeling
 } from '@/api/apiService';
-import { 
-  ArrowLeft, Plus, Save, Trash2, Edit2, X, 
+import {
+  ArrowLeft, Plus, Save, Trash2, Edit2, X,
   AlertCircle, CheckCircle2, Ruler, ChevronRight, Shirt, Search,
-  LayoutList, Unlink, Footprints
+  LayoutList, Unlink, Footprints, PersonStanding, Layers
 } from 'lucide-vue-next';
+
+const TYPE_META = {
+    parte_cima: { label: 'Tabela de Medidas de Parte de Cima', icon: Shirt },
+    parte_baixo: { label: 'Tabela de Medidas de Parte de Baixo', icon: PersonStanding },
+    vestido: { label: 'Tabela de Medidas de Vestido', icon: Layers },
+    calcado: { label: 'Tabela de Medidas de Calçados', icon: Footprints }
+};
 
 // --- CONSTANTES ---
 const OPERATORS = [
@@ -43,7 +50,8 @@ const loading = ref(true);
 
 
 const isShoeTable = computed(() => modelingName.value.includes('(Calçado)') || (currentModelingType.value === 'calcado'));
-const currentModelingType = ref('roupa');
+const currentModelingType = ref('');
+const currentTypeMeta = computed(() => TYPE_META[currentModelingType.value] || TYPE_META.parte_cima);
 const createEmptyShoeRule = () => ({
     sugestao_tamanho: '',
     pe_min: '',
@@ -76,7 +84,7 @@ const loadPageData = async () => {
         if (details) {
             modelingName.value = details.nome;
             // CORREÇÃO CRÍTICA: Se vier null, força 'roupa'
-            currentModelingType.value = details.tipo || 'roupa'; 
+            currentModelingType.value = details.tipo;
             console.log("Tipo da Modelagem:", currentModelingType.value); // Debug
         }
         
@@ -332,11 +340,8 @@ onMounted(loadPageData);
         <div v-if="activeTab === 'rules'" class="tab-content animate-up" style="animation-delay: 0.1s">
             
             <div class="type-banner" :class="currentModelingType === 'calcado' ? 'calcado' : 'roupa'">
-                <Footprints v-if="currentModelingType === 'calcado'" :size="20"/>
-                <Shirt v-else :size="20"/>
-                <span>
-                    {{ currentModelingType === 'calcado' ? 'Tabela de Medidas de Calçados' : 'Tabela de Medidas de Vestuário' }}
-                </span>
+                <component :is="currentTypeMeta.icon" :size="20"/>
+                <span>{{ currentTypeMeta.label }}</span>
             </div>
 
             <div v-if="loading" class="state-box">Carregando regras...</div>

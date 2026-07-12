@@ -13,20 +13,37 @@
     return;
   }
 
+  // Espelha o FIELD_CONFIG_BY_TYPE do backend (src/utils/rules.js).
+  // Duplicado aqui porque este arquivo é um asset público estático.
+  const TYPE_CONFIG = {
+    parte_cima: { essenciais: ["busto", "cintura"], opcionais: ["altura", "peso"] },
+    parte_baixo: { essenciais: ["cintura"], opcionais: ["quadril", "altura"] },
+    vestido: { essenciais: ["busto", "quadril"], opcionais: ["cintura", "altura", "peso"] },
+  };
+
+  const FIELD_LABELS = {
+    altura: { label: "Altura", unit: "cm", placeholder: "175", min: 140, max: 210, step: 1, default: 170 },
+    peso: { label: "Peso", unit: "kg", placeholder: "65.5", min: 30, max: 150, step: 0.5, default: 65 },
+    busto: { label: "Busto", unit: "cm", placeholder: "90", min: 60, max: 140, step: 1, default: 90 },
+    cintura: { label: "Cintura", unit: "cm", placeholder: "70", min: 50, max: 130, step: 1, default: 70 },
+    quadril: { label: "Quadril", unit: "cm", placeholder: "100", min: 60, max: 150, step: 1, default: 100 },
+  };
+
+  const normalizeField = (campo, value) => {
+    let num = parseFloat(value);
+    if (!Number.isFinite(num)) return undefined;
+    if (campo === "altura" && num > 3) num = num / 100;
+    return num;
+  };
+
   const state = {
     step: 1,
-    type: "roupa",
-    gender: "female",
-    data: {
-      altura: "",
-      peso: "",
-      busto: 90,
-      cintura: 70,
-      quadril: 100,
-      pe: "",
-    },
+    type: null,
+    data: {},
+    touched: {},
     result: null,
     resultPhrases: [],
+    confianca: null,
     loading: false,
     error: "",
     showGuide: false,
@@ -63,10 +80,10 @@
       if (state.type === "calcado") {
         renderStepShoe();
       } else {
-        renderStep1();
+        renderEssentialStep();
       }
     } else if (state.step === 2) {
-      renderStep2();
+      renderOptionalStep();
     } else if (state.step === 3) {
       renderLoading();
     } else {
@@ -74,42 +91,33 @@
     }
   }
 
-  function renderStep1() {
+  function renderEssentialStep() {
+    const typeConfig = TYPE_CONFIG[state.type] || TYPE_CONFIG.vestido;
+
+    const fieldsHTML = typeConfig.essenciais
+      .map((campo) => {
+        const meta = FIELD_LABELS[campo];
+        const value = state.data[campo] || "";
+        return `
+                <div class="bbs-form-group">
+                    <label class="bbs-label">${meta.label}</label>
+                    <div class="bbs-input-row">
+                        <input type="number" step="${meta.step}" id="inp-${campo}" class="bbs-input" value="${value}" placeholder="${meta.placeholder}">
+                        <span class="bbs-unit">${meta.unit}</span>
+                    </div>
+                </div>
+            `;
+      })
+      .join("");
+
     contentArea.innerHTML = `
             <div class="bbs-anim-enter">
                 <div class="bbs-header">
                     <h3 class="bbs-title">Qual é o Meu Tamanho?</h3>
-                    <p class="bbs-subtitle">Informe seus dados para encontrar o ajuste perfeito.</p>
+                    <p class="bbs-subtitle">Informe suas medidas essenciais para encontrar o ajuste perfeito.</p>
                 </div>
 
-                <div class="bbs-gender-toggle">
-                    <button class="bbs-gender-btn ${
-                      state.gender === "female" ? "active" : ""
-                    }" id="btn-female">Feminino</button>
-                    <button class="bbs-gender-btn ${
-                      state.gender === "male" ? "active" : ""
-                    }" id="btn-male">Masculino</button>
-                </div>
-
-                <div class="bbs-form-group">
-                    <label class="bbs-label">Altura</label>
-                    <div class="bbs-input-row">
-                        <input type="number" id="inp-height" class="bbs-input" value="${
-                          state.data.altura
-                        }" placeholder="175">
-                        <span class="bbs-unit">cm</span>
-                    </div>
-                </div>
-
-                <div class="bbs-form-group">
-                    <label class="bbs-label">Peso</label>
-                    <div class="bbs-input-row">
-                        <input type="number" id="inp-weight" class="bbs-input" value="${
-                          state.data.peso
-                        }" placeholder="65.5">
-                        <span class="bbs-unit">kg</span>
-                    </div>
-                </div>
+                ${fieldsHTML}
 
                 ${
                   state.error
@@ -127,31 +135,113 @@
             </div>
         `;
 
-    document.getElementById("btn-female").onclick = () => {
-      state.gender = "female";
-      render();
-    };
-    document.getElementById("btn-male").onclick = () => {
-      state.gender = "male";
-      render();
-    };
-
     document.getElementById("btn-next-1").onclick = () => {
-      const altura = document.getElementById("inp-height").value;
-      const peso = document.getElementById("inp-weight").value;
+      const faltando = [];
 
-      if (!altura || !peso) {
-        setError("Preencha altura e peso.");
+      typeConfig.essenciais.forEach((campo) => {
+        const val = document.getElementById(`inp-${campo}`).value;
+        if (!val) {
+          faltando.push(FIELD_LABELS[campo].label);
+        } else {
+          state.data[campo] = val;
+        }
+      });
+
+      if (faltando.length) {
+        setError(`Preencha: ${faltando.join(", ")}.`);
         render();
         return;
       }
 
-      state.data.altura = altura;
-      state.data.peso = peso;
       setError("");
-      state.step = 2;
-      render();
+      if (typeConfig.opcionais.length) {
+        state.step = 2;
+        render();
+      } else {
+        submitData();
+      }
     };
+  }
+
+  function renderOptionalStep() {
+    const typeConfig = TYPE_CONFIG[state.type] || TYPE_CONFIG.vestido;
+
+    const slidersHTML = typeConfig.opcionais
+      .map((campo) => {
+        const meta = FIELD_LABELS[campo];
+        const current = state.data[campo] !== undefined ? state.data[campo] : meta.default;
+        return `
+                <div class="bbs-slider-item">
+                    <div class="bbs-slider-head">
+                        <label class="bbs-label">${meta.label} (${meta.unit})</label>
+                        <input type="number" id="num-${campo}" value="${current}" class="bbs-mini-input" step="${meta.step}">
+                    </div>
+                    <input type="range" id="range-${campo}" min="${meta.min}" max="${meta.max}" step="${meta.step}" value="${current}" class="bbs-range-control">
+                </div>
+            `;
+      })
+      .join("");
+
+    contentArea.innerHTML = `
+            <div class="bbs-anim-enter">
+                <div class="bbs-header">
+                    <h3 class="bbs-title">Ajuste Fino (opcional)</h3>
+                    <p class="bbs-subtitle">Esses campos são opcionais, mas ajudam a afinar sua recomendação.</p>
+                </div>
+                <div class="bbs-slider-stack">
+                    ${slidersHTML}
+                </div>
+                <div class="bbs-hint-card">
+                    <span>Quanto mais medidas você informar, mais precisa fica a sugestão de tamanho.</span>
+                </div>
+
+                ${
+                  state.error
+                    ? `<p class="bbs-error-text">${state.error}</p>`
+                    : ""
+                }
+
+                <div class="bbs-footer-area">
+                    <div class="bbs-dots">
+                        <div class="bbs-dot"></div>
+                        <div class="bbs-dot active"></div>
+                    </div>
+                    <div class="bbs-actions-row">
+                        <button class="bbs-btn-next bbs-btn-outline" id="btn-skip">Pular</button>
+                        <button class="bbs-btn-next" id="btn-calc">Ver Tamanho</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+    typeConfig.opcionais.forEach((campo) => {
+      const rangeEl = document.getElementById(`range-${campo}`);
+      const numEl = document.getElementById(`num-${campo}`);
+
+      const markTouched = (val) => {
+        state.touched[campo] = true;
+        state.data[campo] = val;
+      };
+
+      rangeEl.oninput = (e) => {
+        numEl.value = e.target.value;
+        markTouched(e.target.value);
+      };
+      numEl.oninput = (e) => {
+        rangeEl.value = e.target.value;
+        markTouched(e.target.value);
+      };
+    });
+
+    document.getElementById("btn-skip").onclick = () => {
+      typeConfig.opcionais.forEach((campo) => {
+        delete state.touched[campo];
+        delete state.data[campo];
+      });
+      submitData();
+    };
+
+    document.getElementById("btn-calc").onclick = submitData;
   }
 
   function renderStepShoe() {
@@ -165,13 +255,13 @@
     // HTML Estrutural (As classes CSS farão o estilo)
     contentArea.innerHTML = `
         <div class="bbs-anim-enter bbs-clean-wrapper">
-            
+
             ${
               imgUrl
                 ? `<div class="bbs-img-header"><img src="${imgUrl}" alt="Produto"></div>`
                 : ""
             }
-            
+
             <h2 class="bbs-clean-title">Qual é o comprimento do seu pé?</h2>
             <p class="bbs-clean-subtitle">
                 Selecione a medida no controle abaixo ou digite o valor exato.
@@ -180,12 +270,12 @@
             <div class="bbs-input-area">
                 <div class="bbs-slider-group">
                     <label class="bbs-input-label">Ajuste os centímetros</label>
-                    <input type="range" id="inp-foot-range" class="bbs-range-modern" 
+                    <input type="range" id="inp-foot-range" class="bbs-range-modern"
                            min="${minRange}" max="${maxRange}" step="0.1" value="${currentVal}">
                 </div>
 
                 <div class="bbs-number-box">
-                    <input type="number" id="inp-foot-num" class="bbs-input-modern" 
+                    <input type="number" id="inp-foot-num" class="bbs-input-modern"
                            value="${currentVal}" step="0.1" min="${minRange}" max="${maxRange}">
                     <span style="font-size:0.9rem; font-weight:500; color:#64748b;">cm</span>
                 </div>
@@ -287,61 +377,6 @@
     };
   }
 
-  function renderStep2() {
-    contentArea.innerHTML = `
-            <div class="bbs-anim-enter">
-                <div class="bbs-header">
-                    <h3 class="bbs-title">Ajuste Fino</h3>
-                    <p class="bbs-subtitle">Ajuste suas medidas se necessário.</p>
-                </div>
-                <div class="bbs-slider-stack">
-                    ${renderSlider("Busto (cm)", "busto", 60, 130)}
-                    ${renderSlider("Cintura (cm)", "cintura", 50, 120)}
-                    ${renderSlider("Quadril (cm)", "quadril", 60, 140)}
-                </div>
-                <div class="bbs-footer-area">
-                    <div class="bbs-dots">
-                        <div class="bbs-dot"></div>
-                        <div class="bbs-dot active"></div>
-                    </div>
-                    <div class="bbs-actions-row">
-                        <button class="bbs-btn-next bbs-btn-outline" id="btn-prev">Voltar</button>
-                        <button class="bbs-btn-next" id="btn-calc">Ver Tamanho</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-    ["busto", "cintura", "quadril"].forEach((key) => {
-      document.getElementById(`range-${key}`).oninput = (e) => {
-        state.data[key] = e.target.value;
-        document.getElementById(`num-${key}`).value = e.target.value;
-      };
-      document.getElementById(`num-${key}`).oninput = (e) => {
-        state.data[key] = e.target.value;
-        document.getElementById(`range-${key}`).value = e.target.value;
-      };
-    });
-
-    document.getElementById("btn-prev").onclick = () => {
-      state.step = 1;
-      render();
-    };
-    document.getElementById("btn-calc").onclick = submitData;
-  }
-
-  function renderSlider(label, key, min, max) {
-    return `
-            <div class="bbs-slider-item">
-                <div class="bbs-slider-head">
-                    <label class="bbs-label">${label}</label>
-                    <input type="number" id="num-${key}" value="${state.data[key]}" class="bbs-mini-input">
-                </div>
-                <input type="range" id="range-${key}" min="${min}" max="${max}" value="${state.data[key]}" class="bbs-range-control">
-            </div>
-        `;
-  }
-
   function renderLoading() {
     contentArea.innerHTML = `
             <div class="bbs-anim-enter bbs-loading-state">
@@ -393,6 +428,15 @@
         )
         .join("");
 
+      const confidenceHTML =
+        state.type !== "calcado" && state.confianca
+          ? `<p class="bbs-confidence-note">${
+              state.confianca === "alta"
+                ? "✓ Recomendação de alta precisão, baseada em várias medidas."
+                : "Recomendação baseada nas medidas essenciais. Informe as opcionais na próxima vez para um resultado ainda mais preciso."
+            }</p>`
+          : "";
+
       body = `
             <div class="bbs-result-header">
                 <div class="bbs-result-title">Seu tamanho ideal é</div>
@@ -402,6 +446,8 @@
             <div class="bbs-pills-container">
                 ${pillsHTML}
             </div>
+
+            ${confidenceHTML}
 
             <p style="color:#64748b; font-size:0.95rem; margin-bottom:10px;">
                 Esta recomendação é baseada nas medidas exatas do seu pé comparadas com este produto.
@@ -422,7 +468,7 @@
     contentArea.innerHTML = `
         <div class="bbs-anim-enter bbs-result-wrapper">
             ${body}
-            
+
             <div class="bbs-actions-row">
                 <button class="bbs-btn bbs-btn-outline" id="btn-edit">Refazer</button>
                 <button class="bbs-btn bbs-btn-primary" id="btn-close-final">Fechar</button>
@@ -455,22 +501,28 @@
     render();
 
     try {
-      let alturaMetros = parseFloat(state.data.altura);
-      if (state.type !== "calcado" && alturaMetros > 3) {
-        alturaMetros = alturaMetros / 100;
+      const medidas = {};
+
+      if (state.type === "calcado") {
+        medidas.pe = normalizeField("pe", state.data.pe) || 0;
+      } else {
+        const typeConfig = TYPE_CONFIG[state.type] || TYPE_CONFIG.vestido;
+
+        typeConfig.essenciais.forEach((campo) => {
+          medidas[campo] = normalizeField(campo, state.data[campo]) || 0;
+        });
+
+        typeConfig.opcionais.forEach((campo) => {
+          if (state.touched[campo]) {
+            medidas[campo] = normalizeField(campo, state.data[campo]);
+          }
+        });
       }
 
       const payload = {
         produto_id: productId,
         store_id: config.storeId,
-        medidas: {
-          altura: alturaMetros || 0,
-          peso: parseFloat(state.data.peso) || 0,
-          busto: parseFloat(state.data.busto) || 0,
-          cintura: parseFloat(state.data.cintura) || 0,
-          quadril: parseFloat(state.data.quadril) || 0,
-          pe: parseFloat(state.data.pe) || 0,
-        },
+        medidas,
       };
 
       const res = await fetch(`${API_BASE_URL}/sugestao`, {
@@ -481,8 +533,14 @@
 
       const json = await res.json();
 
-      if (json.sugestao) {
+      if (!res.ok) {
+        state.result = null;
+        state.resultPhrases = [];
+        state.confianca = null;
+        setError(json.error || "Não foi possível calcular o tamanho.");
+      } else if (json.sugestao) {
         state.result = json.sugestao;
+        state.confianca = json.confianca || null;
         if (Array.isArray(json.frases) && json.frases.length) {
           state.resultPhrases = json.frases;
         } else if (json.frase) {
@@ -494,12 +552,14 @@
       } else {
         state.result = null;
         state.resultPhrases = [];
+        state.confianca = null;
         setError(json.message || "Sem resultado.");
       }
     } catch (err) {
       console.error(err);
       state.result = null;
       state.resultPhrases = [];
+      state.confianca = null;
       setError("Erro de conexão.");
     } finally {
       state.step = 4;

@@ -2,18 +2,30 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { getModelings, createModeling } from '@/api/apiService';
-import { 
-    Ruler, Plus, Edit2, Search, CheckCircle2, Shirt, Footprints // <--- 1. IMPORTAR FOOTPRINTS
+import {
+    Ruler, Plus, Edit2, Search, CheckCircle2, Shirt, Footprints, PersonStanding, Layers
 } from 'lucide-vue-next';
+
+const PRODUCT_TYPES = [
+    { value: 'parte_cima', label: 'Parte de Cima', icon: Shirt, example: 'Camisa Social' },
+    { value: 'parte_baixo', label: 'Parte de Baixo', icon: PersonStanding, example: 'Calça Jeans' },
+    { value: 'vestido', label: 'Vestido', icon: Layers, example: 'Vestido Longo' },
+    { value: 'calcado', label: 'Calçados', icon: Footprints, example: 'Tênis Running' }
+];
 
 const router = useRouter();
 const modelings = ref([]);
 const loading = ref(true);
 const showCreateModal = ref(false);
 const newName = ref('');
-const newType = ref('roupa'); // <--- 2. NOVA VARIÁVEL DE ESTADO
+const newType = ref(PRODUCT_TYPES[0].value);
 const creating = ref(false);
 const searchQuery = ref('');
+
+const currentTypeExample = computed(() => {
+    const found = PRODUCT_TYPES.find(t => t.value === newType.value);
+    return found ? found.example : '';
+});
 
 const fetchModelings = async () => {
     loading.value = true;
@@ -34,7 +46,7 @@ const handleCreate = async () => {
         await createModeling(newName.value, newType.value); 
         
         newName.value = '';
-        newType.value = 'roupa'; // Resetar para o padrão
+        newType.value = PRODUCT_TYPES[0].value; // Resetar para o padrão
         showCreateModal.value = false;
         await fetchModelings();
     } catch (err) {
@@ -130,24 +142,18 @@ onMounted(fetchModelings);
 
             <label>O que você vai medir?</label>
             <div class="type-selector">
-                <div 
-                    class="type-option" 
-                    :class="{ active: newType === 'roupa' }"
-                    @click="newType = 'roupa'"
+                <div
+                    v-for="type in PRODUCT_TYPES"
+                    :key="type.value"
+                    class="type-option"
+                    :class="{ active: newType === type.value }"
+                    @click="newType = type.value"
                 >
-                    <Shirt :size="20" />
-                    <span>Vestuário</span>
-                </div>
-                <div 
-                    class="type-option" 
-                    :class="{ active: newType === 'calcado' }"
-                    @click="newType = 'calcado'"
-                >
-                    <Footprints :size="20" />
-                    <span>Calçados</span>
+                    <component :is="type.icon" :size="20" />
+                    <span>{{ type.label }}</span>
                 </div>
             </div>
-            <label>Nome da Tabela (Ex: {{ newType === 'roupa' ? 'Calça Jeans' : 'Tênis Running' }})</label>
+            <label>Nome da Tabela (Ex: {{ currentTypeExample }})</label>
             <input v-model="newName" placeholder="Digite o nome..." autofocus @keyup.enter="handleCreate">
             
             <div class="modal-actions">
@@ -242,13 +248,13 @@ onMounted(fetchModelings);
 
 /* 5. ESTILOS DO SELETOR DE TIPO */
 .type-selector {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     margin-bottom: 20px;
 }
 
 .type-option {
-    flex: 1;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     padding: 12px;

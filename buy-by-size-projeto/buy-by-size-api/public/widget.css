@@ -958,3 +958,13 @@
   text-align: left;
   font-weight: 500;
 }
+
+.bbs-confidence-note {
+  font-size: 0.8rem;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed var(--bbs-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: -10px 0 20px;
+}

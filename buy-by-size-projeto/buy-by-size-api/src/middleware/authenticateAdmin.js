@@ -1,40 +1,40 @@
-const supabase = require('../lib/supabase');
+const supabase = require('../lib/supabaseClient');
+const env = require('../config/env');
+const AppError = require('../errors/AppError');
+const asyncHandler = require('../utils/asyncHandler');
 
 const MASTER_STORE_ID = '00000000-0000-0000-0000-000000000000';
 
-const authenticateAdmin = async (req, res, next) => {
+const authenticateAdmin = asyncHandler(async (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
 
-  if (apiKey && apiKey === process.env.ADMIN_API_KEY) {
+  if (env.adminApiKey && apiKey === env.adminApiKey) {
     req.storeId = MASTER_STORE_ID;
     return next();
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ error: 'Token ausente' });
+  if (!authHeader) throw new AppError(401, 'Token ausente');
 
   const token = authHeader.split(' ')[1];
 
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Token inválido' });
+  const {
+    data: { user },
+    error
+  } = await supabase.auth.getUser(token);
 
-    const { data: storeLink } = await supabase
-      .from('store_users')
-      .select('store_id')
-      .eq('user_id', user.id)
-      .single();
+  if (error || !user) throw new AppError(401, 'Token inválido');
 
-    if (!storeLink) {
-      return res.status(403).json({ error: 'Usuário sem loja vinculada.' });
-    }
+  const { data: storeLink } = await supabase
+    .from('store_users')
+    .select('store_id')
+    .eq('user_id', user.id)
+    .single();
 
-    req.storeId = storeLink.store_id;
-    next();
-  } catch (err) {
-    console.error('Erro Auth:', err);
-    res.status(500).json({ error: 'Erro na autenticação' });
-  }
-};
+  if (!storeLink) throw new AppError(403, 'Usuário sem loja vinculada.');
+
+  req.storeId = storeLink.store_id;
+  next();
+});
 
 module.exports = authenticateAdmin;
