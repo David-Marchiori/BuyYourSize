@@ -4,11 +4,10 @@
  * gated por is_product(), setar window.BBS_STORE_ID e carregar este script.
  */
 (function () {
-  // ⚠️ TEMPORÁRIO — apontando pro tunnel local (localtunnel) só para este teste.
-  // Antes de ir pra produção, trocar de volta para https://buy-by-size-api.fly.dev
-  const API_BASE_URL = "https://cold-shrimps-decide.loca.lt/api";
-  const WIDGET_SCRIPT_URL = "https://cold-shrimps-decide.loca.lt/public/widget.js";
-  const WIDGET_CSS_URL = "https://cold-shrimps-decide.loca.lt/public/widget.css";
+  // ⚠️ Configure o domínio de PRODUÇÃO
+  const API_BASE_URL = "https://buy-by-size-api.fly.dev/api";
+  const WIDGET_SCRIPT_URL = "https://buy-by-size-api.fly.dev/public/widget.js";
+  const WIDGET_CSS_URL = "https://buy-by-size-api.fly.dev/public/widget.css";
 
   // Botão nativo de "Adicionar ao carrinho" do WooCommerce (core, presente
   // em praticamente todo tema — remover essa classe quebraria o próprio
