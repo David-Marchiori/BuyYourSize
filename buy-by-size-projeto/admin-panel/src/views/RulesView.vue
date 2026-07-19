@@ -492,7 +492,7 @@ onMounted(loadPageData);
                             <td>
                                 <div class="prod-info-row">
                                     <div class="icon-sq"><Shirt :size="16"/></div>
-                                    <span class="p-name">{{ prod.nome || 'Produto sem nome' }}</span>
+                                    <span class="p-name">{{ prod.nome || prod.nome_regra || 'Produto sem nome' }}</span>
                                 </div>
                             </td>
                             <td class="text-code">{{ prod.produto_id }}</td>
