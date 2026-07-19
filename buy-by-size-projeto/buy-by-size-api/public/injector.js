@@ -4,9 +4,9 @@
  */
 (function () {
   // ⚠️ Configure o domínio de PRODUÇÃO
-  const API_BASE_URL = "https://buy-by-size-api.fly.dev/api";
-  const WIDGET_SCRIPT_URL = "https://buy-by-size-api.fly.dev/public/widget.js";
-  const WIDGET_CSS_URL = "https://buy-by-size-api.fly.dev/public/widget.css";
+  const API_BASE_URL = "https://api-bbs.davidmarchiori.dev/api";
+  const WIDGET_SCRIPT_URL = "https://api-bbs.davidmarchiori.dev/public/widget.js";
+  const WIDGET_CSS_URL = "https://api-bbs.davidmarchiori.dev/public/widget.css";
 
   // ⚠️ IMPORTANTE: Use um seletor estável, não use os com final estranho (__xyz)
   const TARGET_ELEMENT_SELECTOR = "div.styles_addToCartWrapper__1pibr";

@@ -6,7 +6,7 @@
   const productImage = config.productImage || "";
   const targetSelector = config.targetElement || ".js-addtocart";
   const API_BASE_URL =
-    config.API_BASE_URL || "https://buy-by-size-api.fly.dev/api";
+    config.API_BASE_URL || "https://api-bbs.davidmarchiori.dev/api";
 
   if (!productId) {
     console.warn("Buy by Size: ID faltando.");
@@ -80,120 +80,83 @@
       if (state.type === "calcado") {
         renderStepShoe();
       } else {
-        renderEssentialStep();
+        renderMeasurementsStep();
       }
     } else if (state.step === 2) {
-      renderOptionalStep();
-    } else if (state.step === 3) {
       renderLoading();
     } else {
       renderResult();
     }
   }
 
-  function renderEssentialStep() {
+  function syncRangeFill(rangeEl) {
+    const min = parseFloat(rangeEl.min);
+    const max = parseFloat(rangeEl.max);
+    const val = parseFloat(rangeEl.value);
+    const pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
+    rangeEl.style.setProperty("--bbs-range-percent", `${pct}%`);
+  }
+
+  function renderSliderField(campo, isPrimary) {
+    const meta = FIELD_LABELS[campo];
+    const touched = isPrimary || !!state.touched[campo];
+    const current = state.data[campo] !== undefined ? state.data[campo] : meta.default;
+    const numValue = touched ? current : "";
+    const mutedClass = touched ? "" : " bbs-range-control--muted";
+    return `
+            <div class="bbs-slider-item${isPrimary ? " bbs-slider-item--primary" : ""}">
+                <div class="bbs-slider-head">
+                    <label class="bbs-label">${meta.label} (${meta.unit})</label>
+                    <input type="number" id="num-${campo}" value="${numValue}" placeholder="${meta.default}" class="bbs-mini-input" step="${meta.step}">
+                </div>
+                <input type="range" id="range-${campo}" min="${meta.min}" max="${meta.max}" step="${meta.step}" value="${current}" class="bbs-range-control${mutedClass}">
+            </div>
+        `;
+  }
+
+  function renderMeasurementsStep() {
     const typeConfig = TYPE_CONFIG[state.type] || TYPE_CONFIG.vestido;
 
-    const fieldsHTML = typeConfig.essenciais
-      .map((campo) => {
-        const meta = FIELD_LABELS[campo];
-        const value = state.data[campo] || "";
-        return `
-                <div class="bbs-form-group">
-                    <label class="bbs-label">${meta.label}</label>
-                    <div class="bbs-input-row">
-                        <input type="number" step="${meta.step}" id="inp-${campo}" class="bbs-input" value="${value}" placeholder="${meta.placeholder}">
-                        <span class="bbs-unit">${meta.unit}</span>
-                    </div>
-                </div>
-            `;
-      })
+    // Campos essenciais sempre têm um valor (mesmo sem interação do usuário).
+    typeConfig.essenciais.forEach((campo) => {
+      if (state.data[campo] === undefined) {
+        state.data[campo] = FIELD_LABELS[campo].default;
+      }
+    });
+
+    const essenciaisHTML = typeConfig.essenciais
+      .map((campo) => renderSliderField(campo, true))
+      .join("");
+    const opcionaisHTML = typeConfig.opcionais
+      .map((campo) => renderSliderField(campo, false))
       .join("");
 
     contentArea.innerHTML = `
             <div class="bbs-anim-enter">
                 <div class="bbs-header">
                     <h3 class="bbs-title">Qual é o Meu Tamanho?</h3>
-                    <p class="bbs-subtitle">Informe suas medidas essenciais para encontrar o ajuste perfeito.</p>
+                    <p class="bbs-subtitle">Informe suas medidas para encontrar o ajuste perfeito.</p>
                 </div>
 
-                ${fieldsHTML}
-
-                ${
-                  state.error
-                    ? `<p class="bbs-error-text">${state.error}</p>`
-                    : ""
-                }
-
-                <div class="bbs-footer-area">
-                    <div class="bbs-dots">
-                        <div class="bbs-dot active"></div>
-                        <div class="bbs-dot"></div>
-                    </div>
-                    <button class="bbs-btn-next" id="btn-next-1">Próximo</button>
-                </div>
-            </div>
-        `;
-
-    document.getElementById("btn-next-1").onclick = () => {
-      const faltando = [];
-
-      typeConfig.essenciais.forEach((campo) => {
-        const val = document.getElementById(`inp-${campo}`).value;
-        if (!val) {
-          faltando.push(FIELD_LABELS[campo].label);
-        } else {
-          state.data[campo] = val;
-        }
-      });
-
-      if (faltando.length) {
-        setError(`Preencha: ${faltando.join(", ")}.`);
-        render();
-        return;
-      }
-
-      setError("");
-      if (typeConfig.opcionais.length) {
-        state.step = 2;
-        render();
-      } else {
-        submitData();
-      }
-    };
-  }
-
-  function renderOptionalStep() {
-    const typeConfig = TYPE_CONFIG[state.type] || TYPE_CONFIG.vestido;
-
-    const slidersHTML = typeConfig.opcionais
-      .map((campo) => {
-        const meta = FIELD_LABELS[campo];
-        const current = state.data[campo] !== undefined ? state.data[campo] : meta.default;
-        return `
-                <div class="bbs-slider-item">
-                    <div class="bbs-slider-head">
-                        <label class="bbs-label">${meta.label} (${meta.unit})</label>
-                        <input type="number" id="num-${campo}" value="${current}" class="bbs-mini-input" step="${meta.step}">
-                    </div>
-                    <input type="range" id="range-${campo}" min="${meta.min}" max="${meta.max}" step="${meta.step}" value="${current}" class="bbs-range-control">
-                </div>
-            `;
-      })
-      .join("");
-
-    contentArea.innerHTML = `
-            <div class="bbs-anim-enter">
-                <div class="bbs-header">
-                    <h3 class="bbs-title">Ajuste Fino (opcional)</h3>
-                    <p class="bbs-subtitle">Esses campos são opcionais, mas ajudam a afinar sua recomendação.</p>
-                </div>
                 <div class="bbs-slider-stack">
-                    ${slidersHTML}
+                    ${essenciaisHTML}
                 </div>
-                <div class="bbs-hint-card">
-                    <span>Quanto mais medidas você informar, mais precisa fica a sugestão de tamanho.</span>
+
+                ${
+                  typeConfig.opcionais.length
+                    ? `
+                <div class="bbs-optional-section">
+                    <p class="bbs-section-label">Ajuste fino (opcional)</p>
+                    <div class="bbs-slider-stack">
+                        ${opcionaisHTML}
+                    </div>
+                    <div class="bbs-hint-card">
+                        <span>Quanto mais medidas você informar, mais precisa fica a sugestão de tamanho.</span>
+                    </div>
                 </div>
+                `
+                    : ""
+                }
 
                 ${
                   state.error
@@ -201,45 +164,38 @@
                     : ""
                 }
 
-                <div class="bbs-footer-area">
-                    <div class="bbs-dots">
-                        <div class="bbs-dot"></div>
-                        <div class="bbs-dot active"></div>
-                    </div>
-                    <div class="bbs-actions-row">
-                        <button class="bbs-btn-next bbs-btn-outline" id="btn-skip">Pular</button>
-                        <button class="bbs-btn-next" id="btn-calc">Ver Tamanho</button>
-                    </div>
+                <div class="bbs-footer-area" style="justify-content:flex-end;">
+                    <button class="bbs-btn-next" id="btn-calc">Ver Tamanho</button>
                 </div>
             </div>
         `;
 
-    typeConfig.opcionais.forEach((campo) => {
+    typeConfig.essenciais.concat(typeConfig.opcionais).forEach((campo) => {
       const rangeEl = document.getElementById(`range-${campo}`);
       const numEl = document.getElementById(`num-${campo}`);
+      const isOpcional = typeConfig.opcionais.includes(campo);
 
-      const markTouched = (val) => {
-        state.touched[campo] = true;
+      syncRangeFill(rangeEl);
+
+      const updateValue = (val) => {
         state.data[campo] = val;
+        if (isOpcional) {
+          state.touched[campo] = true;
+          rangeEl.classList.remove("bbs-range-control--muted");
+        }
       };
 
       rangeEl.oninput = (e) => {
         numEl.value = e.target.value;
-        markTouched(e.target.value);
+        syncRangeFill(rangeEl);
+        updateValue(e.target.value);
       };
       numEl.oninput = (e) => {
         rangeEl.value = e.target.value;
-        markTouched(e.target.value);
+        syncRangeFill(rangeEl);
+        updateValue(e.target.value);
       };
     });
-
-    document.getElementById("btn-skip").onclick = () => {
-      typeConfig.opcionais.forEach((campo) => {
-        delete state.touched[campo];
-        delete state.data[campo];
-      });
-      submitData();
-    };
 
     document.getElementById("btn-calc").onclick = submitData;
   }
@@ -315,6 +271,8 @@
     const range = document.getElementById("inp-foot-range");
     const num = document.getElementById("inp-foot-num");
 
+    syncRangeFill(range);
+
     // Sincroniza Slider <-> Input Numérico
     const syncValue = (val) => {
       let safeVal = parseFloat(val);
@@ -327,11 +285,13 @@
 
     range.oninput = (e) => {
       num.value = e.target.value;
+      syncRangeFill(range);
       syncValue(e.target.value);
     };
 
     num.oninput = (e) => {
       range.value = e.target.value;
+      syncRangeFill(range);
       syncValue(e.target.value);
     };
 
@@ -437,6 +397,11 @@
             }</p>`
           : "";
 
+      const measurementNote =
+        state.type === "calcado"
+          ? "Esta recomendação é baseada na medida exata do seu pé comparada com este produto."
+          : "Esta recomendação é baseada nas medidas informadas comparadas com este produto.";
+
       body = `
             <div class="bbs-result-header">
                 <div class="bbs-result-title">Seu tamanho ideal é</div>
@@ -450,7 +415,7 @@
             ${confidenceHTML}
 
             <p style="color:#64748b; font-size:0.95rem; margin-bottom:10px;">
-                Esta recomendação é baseada nas medidas exatas do seu pé comparadas com este produto.
+                ${measurementNote}
             </p>
         `;
     } else {
@@ -497,7 +462,7 @@
   async function submitData() {
     state.showGuide = false;
     state.loading = true;
-    state.step = 3;
+    state.step = 2;
     render();
 
     try {
@@ -562,7 +527,7 @@
       state.confianca = null;
       setError("Erro de conexão.");
     } finally {
-      state.step = 4;
+      state.step = 3;
       state.loading = false;
       render();
     }
@@ -578,6 +543,7 @@
 
   function createTriggerButton() {
     const btn = document.createElement("button");
+    btn.id = "bbs-trigger-btn";
     btn.className = "bbs-trigger-mini"; // Classe definida no CSS acima
     btn.type = "button";
 

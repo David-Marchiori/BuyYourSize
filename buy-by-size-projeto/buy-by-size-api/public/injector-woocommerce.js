@@ -5,9 +5,9 @@
  */
 (function () {
   // ⚠️ Configure o domínio de PRODUÇÃO
-  const API_BASE_URL = "https://buy-by-size-api.fly.dev/api";
-  const WIDGET_SCRIPT_URL = "https://buy-by-size-api.fly.dev/public/widget.js";
-  const WIDGET_CSS_URL = "https://buy-by-size-api.fly.dev/public/widget.css";
+  const API_BASE_URL = "https://api-bbs.davidmarchiori.dev/api";
+  const WIDGET_SCRIPT_URL = "https://api-bbs.davidmarchiori.dev/public/widget.js";
+  const WIDGET_CSS_URL = "https://api-bbs.davidmarchiori.dev/public/widget.css";
 
   // Botão nativo de "Adicionar ao carrinho" do WooCommerce (core, presente
   // em praticamente todo tema — remover essa classe quebraria o próprio
